@@ -1,5 +1,4 @@
 import threading
-
 from src.vision.vision import capture_and_process_minimap #using to V2
 from src.gui.gui import MapleGUI
 from src.controller.controller import Controller

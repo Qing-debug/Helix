@@ -4,7 +4,7 @@ from pathlib import Path
 import src.vision.vision_helper_lib as vision
 import time
 from collections import namedtuple
-
+import datetime
 # Constants
 MINIMAP_POSITION_RECALC_INTERVAL = 1000
 FRAME_DELAY_MS = 10 # main determinant in while loop execution speed
@@ -24,8 +24,8 @@ def capture_and_process_minimap(sharedInfo):
     # nested dictionary for accessing minimap images easily
     corners = ["left_top", "right_top", "right_bot", "left_bot"]
     minimap_paths = {corner: {
-        "border": project_root / "assets" / "minimap_borders" / f"{corner}_grayscale.png",
-        "mask": project_root / "assets" / "minimap_borders" / f"{corner}_mask.png"
+        "border": project_root / "assets" / "brds" / f"{corner}_grayscale.png",
+        "mask": project_root / "assets" / "brds" / f"{corner}_mask.png"
     } for corner in corners}
 
     # instantiate camera and find maplestory pixel location
@@ -78,5 +78,6 @@ def capture_and_process_minimap(sharedInfo):
                 sharedInfo.minimap_frame = cv2.cvtColor(minimap_frame, cv2.COLOR_BGR2RGB)
             minimap_frame_counter += 1
             cv2.imshow("Minimap", minimap_frame)
+            print(f"{datetime.datetime.now()}")
             cv2.waitKey(FRAME_DELAY_MS)  # for some reason, longer delay time == lower occurrence of camera.grab() returning none regardless of the content
             time.sleep(THREAD_SLEEP_DURATION_S)  # give time for other threads (like the pathfinding thread) to run.

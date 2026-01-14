@@ -42,7 +42,6 @@ class Controller:
     def deleteNode(self, node: Node) -> None:
         self.bot.deleteNode(node)
 
-
     # delete once you don't need a direct way to test this
     def parseCSV(self) -> None:
         res_parse_CSV = self.bot._parseCSV()
@@ -54,7 +53,6 @@ class Controller:
         res_build_graph = self.bot._buildGraph()
         if not is_successful(res_build_graph):
             print(res_build_graph)
-
 
 class MapleBot:
     def __init__(self, sharedInfo = None, CSV = None, characterClass = None):
@@ -98,6 +96,7 @@ class MapleBot:
 
         return Success(None)
 
+    #Note - must check janus.event flag in BLE class is set before attempting to put items in the queue.
     # def start(self):
     #     setup_bot_res = self._setupBot()
     #     if not is_successful(setup_bot_res):

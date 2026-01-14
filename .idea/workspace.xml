@@ -4,24 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c3c03aa9-72c5-42f0-a98b-6d9d74818c04" name="Changes" comment="feat(ble): add BLEManager class for async BLE device discovery and connection">
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/Helix.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.edit.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="c3c03aa9-72c5-42f0-a98b-6d9d74818c04" name="Changes" comment="feat: &#10;1. update main.py to use MinimapScanner class instead of threaded function handling minimap scanning">
       <change afterPath="$PROJECT_DIR$/src/ble/ble_helper_lib.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/ble/obfuscated_ble_for_thirdparty_advice.py" afterDir="false" />
       <change afterPath="$PROJECT_DIR$/src/vision/vision_v2.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/ble/ble.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/ble/ble.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/ble/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/ble/test.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/controller/controller.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/controller/controller.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/gui/gui.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/gui.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/vision/vision.py" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/src/vision/vision_helper_lib.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/vision/vision_helper_lib.py" afterDir="false" />
     </list>
@@ -144,6 +131,7 @@
       <workItem from="1764431893557" duration="174000" />
       <workItem from="1764432163436" duration="1672000" />
       <workItem from="1766611871988" duration="784000" />
+      <workItem from="1768390422861" duration="464000" />
     </task>
     <task id="LOCAL-00001" summary="Continuation of a separate project.">
       <option name="closed" value="true" />
@@ -209,7 +197,55 @@
       <option name="project" value="LOCAL" />
       <updated>1762082115043</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="feat: add project configuration files">
+      <option name="closed" value="true" />
+      <created>1768390525157</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1768390525157</updated>
+    </task>
+    <task id="LOCAL-00010" summary="feat(ble): implement BLEManager as a singleton for managing BLE connections and device discovery">
+      <option name="closed" value="true" />
+      <created>1768390583339</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1768390583339</updated>
+    </task>
+    <task id="LOCAL-00011" summary="Refactor: remove unnecessary newlines and add note to start method class about using janus flag">
+      <option name="closed" value="true" />
+      <created>1768390678400</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1768390678400</updated>
+    </task>
+    <task id="LOCAL-00012" summary="feat(gui): add startup message to indicate GUI initialization">
+      <option name="closed" value="true" />
+      <created>1768390701282</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1768390701282</updated>
+    </task>
+    <task id="LOCAL-00013" summary="feat: add project configuration file for Python module setup">
+      <option name="closed" value="true" />
+      <created>1768390713048</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1768390713048</updated>
+    </task>
+    <task id="LOCAL-00014" summary="feat: &#10;1. update main.py to use MinimapScanner class instead of threaded function handling minimap scanning">
+      <option name="closed" value="true" />
+      <created>1768390815296</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1768390815296</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -234,7 +270,13 @@
     <MESSAGE value="Docs: Add asyncio example showcasing sequential and concurrent task execution." />
     <MESSAGE value="Refactor: Remove unnecessary newline in main.py" />
     <MESSAGE value="feat(ble): add BLEManager class for async BLE device discovery and connection" />
-    <option name="LAST_COMMIT_MESSAGE" value="feat(ble): add BLEManager class for async BLE device discovery and connection" />
+    <MESSAGE value="feat: add project configuration files" />
+    <MESSAGE value="feat(ble): implement BLEManager as a singleton for managing BLE connections and device discovery" />
+    <MESSAGE value="Refactor: remove unnecessary newlines and add note to start method class about using janus flag" />
+    <MESSAGE value="feat(gui): add startup message to indicate GUI initialization" />
+    <MESSAGE value="feat: add project configuration file for Python module setup" />
+    <MESSAGE value="feat: &#10;1. update main.py to use MinimapScanner class instead of threaded function handling minimap scanning" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat: &#10;1. update main.py to use MinimapScanner class instead of threaded function handling minimap scanning" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

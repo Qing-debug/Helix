@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 from enum import Enum
+from returns.result import Failure, Success, Result
+from returns.pipeline import is_successful
 
 
 def findInGameMinimapBorder(matched_templates, minimap_border_templates, corners: list[str]) -> dict[str, (int,int)]:
     in_game_border_offsets = {}
-    print(matched_templates)
     for corner in corners:
         matched_template = matched_templates[corner]
         template_height, template_width = minimap_border_templates[corner].shape
@@ -46,14 +47,17 @@ def cameraGrab(camera ,minimap_detection_region_of_interest : (int, int, int, in
     return frame
 
 #checks if the proposed region to grab a frame is valid according to bettercamera's.grab() function, assumes screen_size is for main monitor as our comparisons are based off the coordinate space of the main monitor
-def isProposedMinimapRegionValid(minimap_region: (int, int, int, int), screen_size: (int,int)) -> bool:
+def isProposedMinimapRegionValid(minimap_region: (int, int, int, int), screen_size: (int,int)) -> Result[None,str]:
+    max_x_screen, max_y_screen = screen_size = screen_size[::-1] #reverse because its in (y,x) format
     x1, y1, x2, y2 = minimap_region[0], minimap_region[1], minimap_region[2], minimap_region[3]
-    if x1 < 0 or y1 < 0 or x2 > screen_size[0] or y2 > screen_size[1]:
-        return False
+    if x1 < 0 or y1 < 0:
+        return Failure("The top-left capture region of " + str((x1,y1)) + " must be (0,0) or above.")
+    if x2 > max_x_screen or y2 > max_y_screen:
+        return Failure("The bottom-right capture region of " + str((x2, y2)) + " exceeds our monitor max region of " + str(screen_size))
     if x1 >= x2 or y1 >= y2:
-        return False
+        return Failure("The top-left capture region," + str((x1,x2)) + ", exceeds the bottom-right capture region" + str((x2,y2)))
 
-    return True
+    return Success(None)
 
 
 

@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="c3c03aa9-72c5-42f0-a98b-6d9d74818c04" name="Changes" comment="feat(ble): add BLEManager class for async BLE device discovery and connection">
+      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/Helix.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.agent.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/copilot.data.migration.edit.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ble/ble_helper_lib.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/ble/obfuscated_ble_for_thirdparty_advice.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/vision/vision_v2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ble/ble.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/ble/ble.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/ble/test.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/ble/test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/controller/controller.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/controller/controller.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/gui.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/gui.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vision/vision.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/vision/vision_helper_lib.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/vision/vision_helper_lib.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="master" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Qing-debug&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Qing-debug/Helix.git&quot;,
+    &quot;accountId&quot;: &quot;bfdb0230-3e13-406a-90b2-c7ba3da15a50&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
+  <component name="ProjectId" id="34KQfMi1bsHXFr99UBAZa2HbAlq" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_MARK_IGNORED_FILES_AS_EXCLUDED&quot;: &quot;true&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;Python.ble.executor&quot;: &quot;Run&quot;,
+    &quot;Python.main.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test.executor&quot;: &quot;Run&quot;,
+    &quot;Python.test_event.executor&quot;: &quot;Run&quot;,
+    &quot;Python.vision.executor&quot;: &quot;Run&quot;,
+    &quot;Python.vision_helper_lib.executor&quot;: &quot;Run&quot;,
+    &quot;Python.vision_v2.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultAutoModeForALLUsers.v1&quot;: &quot;true&quot;,
+    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;pathfinding-+BLE&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;editor.preferences.inline.completion&quot;,
+    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-a71380e98a7c-JavaScript-PY-252.28238.29" />
+        <option value="bundled-python-sdk-a101402ee41c-968fe969f28a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.28238.29" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="c3c03aa9-72c5-42f0-a98b-6d9d74818c04" name="Changes" comment="" />
+      <created>1760959886347</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1760959886347</updated>
+      <workItem from="1760959887538" duration="739000" />
+      <workItem from="1760960644789" duration="6490000" />
+      <workItem from="1760996253083" duration="6851000" />
+      <workItem from="1761169039489" duration="109000" />
+      <workItem from="1761169325151" duration="2264000" />
+      <workItem from="1761226663922" duration="5371000" />
+      <workItem from="1761298166767" duration="11399000" />
+      <workItem from="1761469322239" duration="3725000" />
+      <workItem from="1761587110684" duration="4576000" />
+      <workItem from="1761642075784" duration="4280000" />
+      <workItem from="1761666784747" duration="9083000" />
+      <workItem from="1761743324740" duration="6251000" />
+      <workItem from="1761912505901" duration="5029000" />
+      <workItem from="1761920716839" duration="5881000" />
+      <workItem from="1762081475207" duration="1149000" />
+      <workItem from="1762175229613" duration="14445000" />
+      <workItem from="1762341532157" duration="625000" />
+      <workItem from="1762342430382" duration="14809000" />
+      <workItem from="1762601688793" duration="1183000" />
+      <workItem from="1762602903566" duration="235000" />
+      <workItem from="1762603163815" duration="132000" />
+      <workItem from="1762603318333" duration="14313000" />
+      <workItem from="1762625132885" duration="272000" />
+      <workItem from="1762896300682" duration="2406000" />
+      <workItem from="1763214345877" duration="12370000" />
+      <workItem from="1763291344934" duration="16724000" />
+      <workItem from="1763586130912" duration="3378000" />
+      <workItem from="1763671200509" duration="5135000" />
+      <workItem from="1763758691597" duration="4713000" />
+      <workItem from="1763763475315" duration="118000" />
+      <workItem from="1763827868653" duration="8195000" />
+      <workItem from="1764105691030" duration="2744000" />
+      <workItem from="1764191427717" duration="2231000" />
+      <workItem from="1764431893557" duration="174000" />
+      <workItem from="1764432163436" duration="1672000" />
+      <workItem from="1766611871988" duration="784000" />
+    </task>
+    <task id="LOCAL-00001" summary="Continuation of a separate project.">
+      <option name="closed" value="true" />
+      <created>1760961770769</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1760961770769</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Continuation of a separate project.">
+      <option name="closed" value="true" />
+      <created>1760964774311</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1760964774311</updated>
+    </task>
+    <task id="LOCAL-00003" summary=" Refactor: Adjust minimap assets path and add timestamp logging.">
+      <option name="closed" value="true" />
+      <created>1762081810020</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1762081810020</updated>
+    </task>
+    <task id="LOCAL-00004" summary=" Refactor: Adjust minimap assets path and add timestamp logging.">
+      <option name="closed" value="true" />
+      <created>1762081816295</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1762081816295</updated>
+    </task>
+    <task id="LOCAL-00005" summary=" Refactor: Adjust minimap assets path and add timestamp logging.">
+      <option name="closed" value="true" />
+      <created>1762081862393</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1762081862393</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Docs: Add asyncio example showcasing sequential and concurrent task execution.">
+      <option name="closed" value="true" />
+      <created>1762081912200</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1762081912200</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Refactor: Remove unnecessary newline in main.py">
+      <option name="closed" value="true" />
+      <created>1762082017930</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1762082017930</updated>
+    </task>
+    <task id="LOCAL-00008" summary="feat(ble): add BLEManager class for async BLE device discovery and connection">
+      <option name="closed" value="true" />
+      <created>1762082115043</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1762082115043</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Continuation of a separate project." />
+    <MESSAGE value="Add BLEManager class and example async functions for BLE device discovery" />
+    <MESSAGE value=" Refactor: Adjust minimap assets path and add timestamp logging." />
+    <MESSAGE value="Test: " />
+    <MESSAGE value="Docs: Add asyncio example showcasing sequential and concurrent task execution." />
+    <MESSAGE value="Refactor: Remove unnecessary newline in main.py" />
+    <MESSAGE value="feat(ble): add BLEManager class for async BLE device discovery and connection" />
+    <option name="LAST_COMMIT_MESSAGE" value="feat(ble): add BLEManager class for async BLE device discovery and connection" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/ble/test.py</url>
+          <line>133</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/ble/ble_helper_lib.py</url>
+          <option name="timeStamp" value="5" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/src/ble/test.py</url>
+          <option name="timeStamp" value="7" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Helix$ble.coverage" NAME="ble Coverage Results" MODIFIED="1763673938922" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/ble" />
+    <SUITE FILE_PATH="coverage/Helix$vision_v2.coverage" NAME="vision_v2 Coverage Results" MODIFIED="1763331124520" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/vision" />
+    <SUITE FILE_PATH="coverage/Helix$test_event.coverage" NAME="test_event Coverage Results" MODIFIED="1763675546940" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/Helix$test.coverage" NAME="test Coverage Results" MODIFIED="1763832595667" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/ble" />
+    <SUITE FILE_PATH="coverage/Helix$vision_helper_lib.coverage" NAME="vision_helper_lib Coverage Results" MODIFIED="1763331369482" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/vision" />
+    <SUITE FILE_PATH="coverage/Helix$vision.coverage" NAME="vision Coverage Results" MODIFIED="1762603096942" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src/vision" />
+    <SUITE FILE_PATH="coverage/Helix$main.coverage" NAME="main Coverage Results" MODIFIED="1763761954843" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/src" />
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
+  </component>
+</project>

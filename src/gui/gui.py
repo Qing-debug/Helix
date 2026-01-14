@@ -20,6 +20,7 @@ class MapleGUI:
         self.sharedInfo = sharedInfo
 
     def start(self):
+        print("Starting GUI...")
         self._setupGUI()
         self._updateCanvas()
         self.gui.mainloop()

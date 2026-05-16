@@ -15,20 +15,20 @@ from collections import namedtuple
 class Controller:
 
     def __init__(self, sharedInfo = None, CSV = None, characterClass = None):
-        self.bot = MapleBot(sharedInfo = sharedInfo, CSV = CSV, characterClass = characterClass)
+        self.agent = MapleAgent(sharedInfo = sharedInfo, CSV = CSV, characterClass = characterClass)
 
     # def start(self):
-    #     self.bot.start()
+    #     self.agent.start()
 
     def getCharacterCoords(self) -> (int, int):
-        return self.bot.getCharacterCoords()
+        return self.agent.getCharacterCoords()
 
-    #will throw error if called before _setupBot() method in the bot class is called
+    #will throw error if called before _setupAgent() method in the agent class is called
     def getGraph(self) -> nx.MultiDiGraph:
-        return self.bot.pathGraph.graph
+        return self.agent.pathGraph.graph
 
     def getNodeMap(self) -> dict[int, Node]:
-        return self.bot.node_map
+        return self.agent.node_map
 
     # def addRotationNodes(self):
 
@@ -37,26 +37,26 @@ class Controller:
     # def resetNodeList(self):
 
     def connectCharacterNode(self, char_node: CharacterNode = None) -> None:
-        self.bot.connectCharacterNode(char_node)
+        self.agent.connectCharacterNode(char_node)
 
     def deleteNode(self, node: Node) -> None:
-        self.bot.deleteNode(node)
+        self.agent.deleteNode(node)
 
 
     # delete once you don't need a direct way to test this
     def parseCSV(self) -> None:
-        res_parse_CSV = self.bot._parseCSV()
+        res_parse_CSV = self.agent._parseCSV()
         if not is_successful(res_parse_CSV):
             print(res_parse_CSV)
 
     # delete once you don't need a direct way to test this
     def buildGraph(self) -> None:
-        res_build_graph = self.bot._buildGraph()
+        res_build_graph = self.agent._buildGraph()
         if not is_successful(res_build_graph):
             print(res_build_graph)
 
 
-class MapleBot:
+class MapleAgent:
     def __init__(self, sharedInfo = None, CSV = None, characterClass = None):
         self.characterClass = characterClass
         self.map_rotation_order = []
@@ -73,19 +73,19 @@ class MapleBot:
         self.character_icon_path = str(self.project_root / "assets" / 'chr' / 'chr.png')
         self.character_icon_mask_path = str(self.project_root / "assets" / 'chr' / 'chr_mask.png')
 
-    def _setupBot(self) -> Result[None, str]:
+    def _setupAgent(self) -> Result[None, str]:
         """
-        Initialize bot components in dependency order.
+        Initialize agent components in dependency order.
         Order matters: PathGraph → CSV data → Graph edges
         """
 
-        # STEP 1: Initialize PathGraph with references to MapleBot's data containers
+        # STEP 1: Initialize PathGraph with references to MapleAgent's data containers
         # PathGraph will hold references to self.node_map (empty)
         # This avoids the fragile initialization order we had before
         self._setupPathGraph()
 
         # STEP 2: Parse CSV to populate the containers PathGraph references
-        # Fills self.node_map (used by PathGraph) and self.map_rotation_order (used by MapleBot)
+        # Fills self.node_map (used by PathGraph) and self.map_rotation_order (used by MapleAgent)
         parsed_csv_res = self._parseCSV()
         if not is_successful(parsed_csv_res):
             return parsed_csv_res
@@ -99,12 +99,12 @@ class MapleBot:
         return Success(None)
 
     # def start(self):
-    #     setup_bot_res = self._setupBot()
-    #     if not is_successful(setup_bot_res):
-    #         print(setup_bot_res)
-    #         print("terminating setup bot process.")
+    #     setup_agent_res = self._setupAgent()
+    #     if not is_successful(setup_agent_res):
+    #         print(setup_agent_res)
+    #         print("terminating setup agent process.")
     #         return
-    #     print(f"bot state setup successfully. Beginning pathfinding...")
+    #     print(f"agent state setup successfully. Beginning pathfinding...")
     #     self.thread.start()
     #
     # def executePathFinding(self):

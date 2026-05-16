@@ -42,6 +42,16 @@ class Controller:
     def deleteNode(self, node: Node) -> None:
         self.agent.deleteNode(node)
 
+    def loadMap(self, csv_path) -> Result[None, str]:
+        """
+        Swap the agent's active map to the CSV at csv_path and rebuild the graph.
+
+        Returns Success(None) on success, Failure(<reason>) on parser/build error.
+        On failure the agent's state is reset (no partial map left over).
+        """
+        self.agent.setCSV(csv_path)
+        return self.agent._setupAgent()
+
 
     # delete once you don't need a direct way to test this
     def parseCSV(self) -> None:
@@ -78,6 +88,16 @@ class MapleAgent:
         self.map_rotation_order = []
         self.node_map = {}
         self.pathGraph = None
+
+    def setCSV(self, csv_path) -> None:
+        """
+        Replace the CSV the agent loads from. Caller is responsible for
+        calling _setupAgent() afterward to rebuild the graph.
+
+        csv_path may be a str or a pathlib.Path. Stored as a Path so
+        CSVParser._validateCSV's .exists() check works.
+        """
+        self.CSVParser.CSV_file = Path(csv_path) if csv_path is not None else None
 
     def _setupAgent(self) -> Result[None, str]:
         """

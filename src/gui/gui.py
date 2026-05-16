@@ -239,7 +239,7 @@ class MapleGUI:
             parent=self.gui,
             title="Load Map CSV",
             initialdir="maps",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            filetypes=[("CSV files", "*.csv")],
         )
         if not path:
             return  # user cancelled
@@ -251,7 +251,7 @@ class MapleGUI:
 
     #Without mocking the environment, we don't get to take advantage of _setupAgent telling us it failed. We're only using this for testing purposes
     def mockSetupAgentEnvironment(self):
-        setup_agent_res = self.controller.agent._setupAgent()
+        setup_agent_res = self.controller.agent.setupAgent()
         if is_successful(setup_agent_res):
             print("setup agent successful")
         else:

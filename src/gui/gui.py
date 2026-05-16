@@ -1,5 +1,6 @@
 import tkinter as tk
 import tkinter.font as tkfont
+import tkinter.filedialog as filedialog
 from PIL import Image, ImageTk
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -136,6 +137,9 @@ class MapleGUI:
         clear_gui_minimap_button = tk.Button(parent, text = "clear drawn nodes on minimap", command = self._clearDrawnNodesOnGUIMinimap)
         clear_gui_minimap_button.pack(side=tk.TOP, pady=5)
 
+        load_map_button = tk.Button(parent, text="Load Map (Browse...)", command=self._loadMapBrowse)
+        load_map_button.pack(side=tk.TOP, pady=5)
+
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
         # parse_CSV_button = tk.Button(parent, text = "(delete or move to a separate tab on the GUI) parse CSV", command = self.controller.parseCSV)
         # parse_CSV_button.pack(side=tk.TOP, pady=5)
@@ -228,6 +232,22 @@ class MapleGUI:
 
     def clearGUIConsole(self):
         self.gui_console.delete(1.0, tk.END)
+
+    def _loadMapBrowse(self):
+        """Open a file dialog, then ask the controller to swap to the picked CSV."""
+        path = filedialog.askopenfilename(
+            parent=self.gui,
+            title="Load Map CSV",
+            initialdir="maps",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if not path:
+            return  # user cancelled
+        result = self.controller.loadMap(path)
+        if is_successful(result):
+            self._printToGUIConsole(f"Loaded map: {path}")
+        else:
+            self._printToGUIConsole(f"Failed to load map {path}: {result}")
 
     #Without mocking the environment, we don't get to take advantage of _setupAgent telling us it failed. We're only using this for testing purposes
     def mockSetupAgentEnvironment(self):

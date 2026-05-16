@@ -70,8 +70,8 @@ class MapleBot:
         self.edge_x_tolerance_level = 2
         # self.thread = threading.Thread(target=self.executePathFinding, daemon=True)
         self.project_root = Path(__file__).parent.parent.parent
-        self.character_icon_path = str(self.project_root / "assets" / 'character_icon' / 'character_icon.png')
-        self.character_icon_mask_path = str(self.project_root / "assets" / 'character_icon' / 'character_icon_mask.png')
+        self.character_icon_path = str(self.project_root / "assets" / 'chr' / 'chr.png')
+        self.character_icon_mask_path = str(self.project_root / "assets" / 'chr' / 'chr_mask.png')
 
     def _setupBot(self) -> Result[None, str]:
         """

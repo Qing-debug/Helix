@@ -19,3 +19,6 @@ env/
 
 # Project-specific tooling
 .superpowers/
+
+# Local map CSVs produced by the map editor
+maps/

@@ -73,11 +73,21 @@ class MapleAgent:
         self.character_icon_path = str(self.project_root / "assets" / 'chr' / 'chr.png')
         self.character_icon_mask_path = str(self.project_root / "assets" / 'chr' / 'chr_mask.png')
 
+    def _resetAgentState(self) -> None:
+        """Clear all setup-derived state so _setupAgent can be re-run with a new CSV."""
+        self.map_rotation_order = []
+        self.node_map = {}
+        self.pathGraph = None
+
     def _setupAgent(self) -> Result[None, str]:
         """
         Initialize agent components in dependency order.
-        Order matters: PathGraph → CSV data → Graph edges
+        Order matters: PathGraph → CSV data → Graph edges.
+
+        Idempotent: calling _setupAgent() again (e.g. on map swap) clears
+        prior state first.
         """
+        self._resetAgentState()
 
         # STEP 1: Initialize PathGraph with references to MapleAgent's data containers
         # PathGraph will hold references to self.node_map (empty)

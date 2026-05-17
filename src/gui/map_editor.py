@@ -107,6 +107,24 @@ class MapEditor:
                 command=self._onPlacementChange,
             ).pack(anchor='w', padx=PANEL_PADX * 2)
 
+        # Sticky flag defaults baked into newly-placed nodes. Independent from the inspector's
+        # flag checkboxes (which edit the selected node). Lets the user batch-place a run of
+        # nodes that all share a flag config without ticking it per-node.
+        self._placement_flag_vars = {
+            "can_fall": tk.BooleanVar(),
+            "fall_dist_exceeds_vertical_tp": tk.BooleanVar(),
+            "is_left_platform_edge": tk.BooleanVar(),
+            "is_right_platform_edge": tk.BooleanVar(),
+        }
+        for field_name, var in self._placement_flag_vars.items():
+            tk.Checkbutton(
+                self._panel_frame,
+                text=field_name,
+                variable=var,
+                bg='lightblue',
+                font=self._font_body,
+            ).pack(anchor='w', padx=PANEL_PADX * 2)
+
         tk.Label(self._panel_frame, text="Inspector", bg='lightblue',
                  font=self._font_body).pack(anchor='w', padx=PANEL_PADX, pady=(12, 0))
         self._inspector_frame = tk.Frame(self._panel_frame, bg='lightblue')
@@ -295,13 +313,15 @@ class MapEditor:
         return None
 
     def _placeNode(self, x, y):
-        """Create a new EditorNode at (x, y) using the current placement nodetype. Auto-selects it."""
+        """Create a new EditorNode at (x, y) using the current placement nodetype + sticky flag defaults. Auto-selects it."""
         local_id = self.state.next_local_id
         self.state.next_local_id += 1
+        flag_kwargs = {name: bool(var.get()) for name, var in self._placement_flag_vars.items()}
         node = EditorNode(
             local_id=local_id,
             nodetype=self.state.placement_nodetype,
             pos=(int(x), int(y)),
+            **flag_kwargs,
         )
         self.state.nodes[local_id] = node
         if node.nodetype == "blue_node":

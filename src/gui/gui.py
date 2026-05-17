@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import time
 from returns.pipeline import is_successful
 from src.controller.node import  CharacterNode
+from src.gui.map_editor import MapEditor
 
 
 class MapleGUI:
@@ -21,6 +22,7 @@ class MapleGUI:
         self.node_count = 0
         self.controller = controller
         self.sharedInfo = sharedInfo
+        self.map_editor = None  # MapEditor instance when open, None otherwise
         self.zoom_factor = 1.0
         self.min_zoom = 0.5
         self.max_zoom = 3.0
@@ -140,6 +142,9 @@ class MapleGUI:
         load_map_button = tk.Button(parent, text="Load Map (Browse...)", command=self._loadMapBrowse)
         load_map_button.pack(side=tk.TOP, pady=5)
 
+        open_editor_button = tk.Button(parent, text="Open Map Editor", command=self._openMapEditor)
+        open_editor_button.pack(side=tk.TOP, pady=5)
+
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
         # parse_CSV_button = tk.Button(parent, text = "(delete or move to a separate tab on the GUI) parse CSV", command = self.controller.parseCSV)
         # parse_CSV_button.pack(side=tk.TOP, pady=5)
@@ -248,6 +253,19 @@ class MapleGUI:
             self._printToGUIConsole(f"Loaded map: {path}")
         else:
             self._printToGUIConsole(f"Failed to load map {path}: {result}")
+
+    def _openMapEditor(self):
+        """Open the map editor Toplevel. If one is already open, raise it to the front."""
+        if self.map_editor is not None and self.map_editor.window.winfo_exists():
+            self.map_editor.window.lift()
+            self.map_editor.window.focus_force()
+            return
+        self.map_editor = MapEditor(self.gui, self.controller, self.sharedInfo)
+        # When the editor window closes, drop our reference so the next click opens a fresh one.
+        self.map_editor.window.protocol(
+            "WM_DELETE_WINDOW",
+            lambda: (self.map_editor.window.destroy(), setattr(self, "map_editor", None)),
+        )
 
     #Without mocking the environment, we don't get to take advantage of _setupAgent telling us it failed. We're only using this for testing purposes
     def mockSetupAgentEnvironment(self):

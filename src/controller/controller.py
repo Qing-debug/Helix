@@ -50,8 +50,7 @@ class Controller:
         On failure the agent's state is reset (no partial map left over).
         """
         self.agent.setCSV(csv_path)
-        return self.agent._setupAgent()
-
+        return self.agent.setupAgent()
 
     # delete once you don't need a direct way to test this
     def parseCSV(self) -> None:
@@ -99,7 +98,7 @@ class MapleAgent:
         """
         self.CSVParser.CSV_file = Path(csv_path) if csv_path is not None else None
 
-    def _setupAgent(self) -> Result[None, str]:
+    def setupAgent(self) -> Result[None, str]:
         """
         Initialize agent components in dependency order.
         Order matters: PathGraph → CSV data → Graph edges.

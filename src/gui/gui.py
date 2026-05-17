@@ -106,13 +106,15 @@ class MapleGUI:
 
     def _bindZoomShortcuts(self):
         # Ctrl + / - / 0 for keyboard zoom; Ctrl + mouse wheel for smooth zoom.
-        self.gui.bind_all('<Control-plus>', self._zoomIn)
-        self.gui.bind_all('<Control-equal>', self._zoomIn)
-        self.gui.bind_all('<Control-KP_Add>', self._zoomIn)
-        self.gui.bind_all('<Control-minus>', self._zoomOut)
-        self.gui.bind_all('<Control-KP_Subtract>', self._zoomOut)
-        self.gui.bind_all('<Control-0>', self._zoomReset)
-        self.gui.bind_all('<Control-MouseWheel>', self._onCtrlMouseWheel)
+        # bind (not bind_all) on the Tk root scopes these to the main GUI's widget tree;
+        # other Toplevels (e.g. MapEditor) have their own bindtag chain and aren't affected.
+        self.gui.bind('<Control-plus>', self._zoomIn)
+        self.gui.bind('<Control-equal>', self._zoomIn)
+        self.gui.bind('<Control-KP_Add>', self._zoomIn)
+        self.gui.bind('<Control-minus>', self._zoomOut)
+        self.gui.bind('<Control-KP_Subtract>', self._zoomOut)
+        self.gui.bind('<Control-0>', self._zoomReset)
+        self.gui.bind('<Control-MouseWheel>', self._onCtrlMouseWheel)
 
     def _setupGUI(self):
         self.gui.configure(bg='lightblue')

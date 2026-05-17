@@ -17,9 +17,9 @@ from src.controller.map_csv import EditorNode
 
 RENDER_SCALE = 2  # minimap canvas + node coords rendered at this multiplier of native px
 
-SELECT_RADIUS_PX = 6           # native coords; on-screen hit area = SELECT_RADIUS_PX * RENDER_SCALE
-NODE_DRAW_RADIUS_PX = 4        # native coords; bumped from 3 so dots stay visible at 2x
-SELECTED_RING_RADIUS_PX = 6    # native coords; frames the node at 2x
+SELECT_RADIUS_PX = 3           # native coords; 6 px screen hit radius at RENDER_SCALE=2
+NODE_DRAW_RADIUS_PX = 3        # native coords; 6 px screen radius / 12 px diameter at RENDER_SCALE=2
+SELECTED_RING_RADIUS_PX = 1    # native coords; 2 px screen radius / 4 px diameter
 
 FONT_BODY_SIZE = 13            # default is 9pt; ~1.44x for "scaled-up" feel
 FONT_HEADER_SIZE = 16
@@ -107,6 +107,55 @@ class MapEditor:
                 command=self._onPlacementChange,
             ).pack(anchor='w', padx=PANEL_PADX * 2)
 
+        tk.Label(self._panel_frame, text="Inspector", bg='lightblue',
+                 font=self._font_body).pack(anchor='w', padx=PANEL_PADX, pady=(12, 0))
+        self._inspector_frame = tk.Frame(self._panel_frame, bg='lightblue')
+        self._inspector_frame.pack(fill=tk.X, padx=PANEL_PADX)
+
+        self._inspector_pos_label = tk.Label(
+            self._inspector_frame, text="pos: —", bg='lightblue', font=self._font_body
+        )
+        self._inspector_pos_label.pack(anchor='w')
+
+        self._inspector_nodetype_var = tk.StringVar(value="orange_node")
+        self._inspector_nodetype_frame = tk.Frame(self._inspector_frame, bg='lightblue')
+        self._inspector_nodetype_frame.pack(anchor='w')
+        for label, value in (("blue", "blue_node"), ("orange", "orange_node")):
+            tk.Radiobutton(
+                self._inspector_nodetype_frame,
+                text=label,
+                variable=self._inspector_nodetype_var,
+                value=value,
+                bg='lightblue',
+                font=self._font_body,
+                command=self._onInspectorNodetypeChange,
+            ).pack(side=tk.LEFT)
+
+        self._inspector_flag_vars = {
+            "can_fall": tk.BooleanVar(),
+            "fall_dist_exceeds_vertical_tp": tk.BooleanVar(),
+            "is_left_platform_edge": tk.BooleanVar(),
+            "is_right_platform_edge": tk.BooleanVar(),
+        }
+        for field_name, var in self._inspector_flag_vars.items():
+            tk.Checkbutton(
+                self._inspector_frame,
+                text=field_name,
+                variable=var,
+                bg='lightblue',
+                font=self._font_body,
+                command=lambda f=field_name: self._onInspectorFlagChange(f),
+            ).pack(anchor='w')
+
+        self._inspector_delete_btn = tk.Button(
+            self._inspector_frame,
+            text="Delete",
+            font=self._font_body,
+            padx=BUTTON_PADX, pady=BUTTON_PADY,
+            command=self._deleteSelected,
+        )
+        self._inspector_delete_btn.pack(anchor='w', pady=(4, 0))
+
     def _waitForMinimapAndBuildCanvas(self):
         """
         Poll sharedInfo for a non-None minimap frame, then build the editor's
@@ -135,9 +184,52 @@ class MapEditor:
         self.minimap_canvas.pack(padx=8, pady=8)  # default side=TOP centers horizontally in the frame
         self.minimap_canvas.bind("<Button-1>", self._onCanvasClick)
         self.window.bind("<Delete>", lambda e: self._deleteSelected())
+        self._refreshInspector()  # start with empty inspector since no node is selected yet
 
     def _onPlacementChange(self):
         self.state.placement_nodetype = self._placement_var.get()
+
+    def _onInspectorNodetypeChange(self):
+        sid = self.state.selected_id
+        if sid is None or sid not in self.state.nodes:
+            return
+        new_type = self._inspector_nodetype_var.get()
+        node = self.state.nodes[sid]
+        if node.nodetype == new_type:
+            return
+        old_type = node.nodetype
+        node.nodetype = new_type
+        if old_type == "blue_node" and sid in self.state.rotation_order:
+            self.state.rotation_order.remove(sid)
+        if new_type == "blue_node" and sid not in self.state.rotation_order:
+            self.state.rotation_order.append(sid)
+        self._markDirty()
+        self._refreshInspector()
+        self._renderNodes()
+
+    def _onInspectorFlagChange(self, field_name):
+        sid = self.state.selected_id
+        if sid is None or sid not in self.state.nodes:
+            return
+        node = self.state.nodes[sid]
+        setattr(node, field_name, bool(self._inspector_flag_vars[field_name].get()))
+        self._markDirty()
+        # No re-render needed for flag changes alone; preview rendering (Task 12) will hook in here.
+
+    def _refreshInspector(self):
+        """Sync inspector widgets to the currently selected node."""
+        sid = self.state.selected_id
+        if sid is None or sid not in self.state.nodes:
+            self._inspector_pos_label.config(text="pos: —")
+            self._inspector_nodetype_var.set("orange_node")
+            for var in self._inspector_flag_vars.values():
+                var.set(False)
+            return
+        node = self.state.nodes[sid]
+        self._inspector_pos_label.config(text=f"pos: {node.pos}")
+        self._inspector_nodetype_var.set(node.nodetype)
+        for field_name, var in self._inspector_flag_vars.items():
+            var.set(getattr(node, field_name))
 
     def _applyZoom(self):
         """Resize this editor's Font objects in place. Widgets referencing them auto-update."""
@@ -191,6 +283,7 @@ class MapEditor:
         else:
             self._placeNode(native_x, native_y)
         self._markDirty()
+        self._refreshInspector()
         self._renderNodes()
 
     def _findNodeAt(self, x, y):
@@ -224,6 +317,7 @@ class MapEditor:
             self.state.rotation_order.remove(sid)
         self.state.selected_id = None
         self._markDirty()
+        self._refreshInspector()
         self._renderNodes()
 
     def _markDirty(self):

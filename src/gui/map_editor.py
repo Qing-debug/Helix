@@ -21,12 +21,19 @@ SELECT_RADIUS_PX = 3           # native coords; 6 px screen hit radius at RENDER
 NODE_DRAW_RADIUS_PX = 3        # native coords; 6 px screen radius / 12 px diameter at RENDER_SCALE=2
 SELECTED_RING_RADIUS_PX = 1    # native coords; 2 px screen radius / 4 px diameter
 
-FONT_BODY_SIZE = 13            # default is 9pt; ~1.44x for "scaled-up" feel
+FONT_BODY_SIZE = 10            # Tk default is 9pt; one above for slight legibility bump without crowding
 FONT_HEADER_SIZE = 16
+FONT_NODE_LABEL_SIZE = 7       # local_id text drawn next to blue-node dots on the minimap (not zoom-aware). Sized to roughly match the 12px on-screen dot diameter.
 BUTTON_PADX = 12
 BUTTON_PADY = 6
 PANEL_PADX = 12
 PANEL_PADY = 12
+COLUMN_MIN_WIDTH_PX = 240      # fits the longest checkbox label ("fall_dist_exceeds_vertical_tp") at body size
+SECTION_HEADER_FG = '#1a2b4a'  # dark navy; section-label hierarchy on the lightblue panel
+NODE_LABEL_FG = 'white'        # local_id text color over the (typically dark) minimap
+
+WINDOW_INITIAL_WIDTH = 800     # sized so the 3-column panel fits without clipping the rotation column
+WINDOW_INITIAL_HEIGHT = 800
 
 ZOOM_MIN = 0.5
 ZOOM_MAX = 3.0
@@ -61,16 +68,25 @@ class MapEditor:
 
         self.window = tk.Toplevel(parent_tk)
         self.window.title("Map Editor — untitled")
+        self.window.geometry(f"{WINDOW_INITIAL_WIDTH}x{WINDOW_INITIAL_HEIGHT}")
 
         # Per-window zoom state and fonts. Per-instance tkfont.Font objects (not the global
         # named system fonts) so resizing them only affects widgets in this editor window.
         # Bindings live on self.window (not bind_all), so main GUI keystrokes don't trigger
         # editor zoom and vice versa.
         self.zoom_factor = 1.0
-        self._base_font_sizes = {"body": FONT_BODY_SIZE, "header": FONT_HEADER_SIZE}
+        self._base_font_sizes = {
+            "body": FONT_BODY_SIZE,
+            "header": FONT_HEADER_SIZE,
+            "section": FONT_BODY_SIZE,
+        }
         default_family = tkfont.nametofont("TkDefaultFont").cget("family")
         self._font_body = tkfont.Font(family=default_family, size=FONT_BODY_SIZE)
         self._font_header = tkfont.Font(family=default_family, size=FONT_HEADER_SIZE, weight="bold")
+        self._font_section = tkfont.Font(family=default_family, size=FONT_BODY_SIZE, weight="bold")
+        # Canvas-space label for blue-node local_ids; intentionally NOT in _base_font_sizes so it
+        # doesn't scale with editor zoom (the minimap canvas itself is fixed-size, so labels are too).
+        self._font_node_label = tkfont.Font(family=default_family, size=FONT_NODE_LABEL_SIZE, weight="bold")
 
         self.minimap_canvas = None
         self.minimap_canvas_bg_img_id = None
@@ -83,33 +99,83 @@ class MapEditor:
         self._updateCanvas()
 
     def _buildLayout(self):
-        """Top frame holds the centered minimap canvas. Bottom frame holds full-width controls."""
+        """Top frame holds the centered minimap canvas. Bottom frame holds a vertically-scrollable
+        three-column controls panel (Placement defaults | Inspector | Rotation order).
+
+        Wheel handling binds to self.window (NOT bind_all) so it stays scoped to this Toplevel;
+        the main GUI keeps its own wheel handler unaffected.
+        """
         self._canvas_frame = tk.Frame(self.window, bg='gray20')
         self._canvas_frame.pack(side=tk.TOP, fill=tk.X)
 
-        self._panel_frame = tk.Frame(self.window, bg='lightblue')
-        self._panel_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        panel_outer = tk.Frame(self.window, bg='lightblue')
+        panel_outer.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        tk.Label(self._panel_frame, text="Map Editor", bg='lightblue',
-                 font=self._font_header).pack(pady=(PANEL_PADY, 4))
+        self._panel_canvas = tk.Canvas(
+            panel_outer, bg='lightblue', highlightthickness=0, borderwidth=0,
+        )
+        panel_scrollbar = tk.Scrollbar(
+            panel_outer, orient='vertical', command=self._panel_canvas.yview,
+        )
+        self._panel_canvas.configure(yscrollcommand=panel_scrollbar.set)
+        self._panel_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        panel_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self._placement_var = tk.StringVar(value="orange_node")
-        tk.Label(self._panel_frame, text="Placement defaults", bg='lightblue',
-                 font=self._font_body).pack(anchor='w', padx=PANEL_PADX, pady=(8, 0))
-        for label, value in (("blue_node", "blue_node"), ("orange_node", "orange_node")):
-            tk.Radiobutton(
-                self._panel_frame,
-                text=label,
-                variable=self._placement_var,
-                value=value,
-                bg='lightblue',
-                font=self._font_body,
-                command=self._onPlacementChange,
-            ).pack(anchor='w', padx=PANEL_PADX * 2)
+        self._panel_frame = tk.Frame(self._panel_canvas, bg='lightblue')
+        panel_window_id = self._panel_canvas.create_window(
+            (0, 0), window=self._panel_frame, anchor='nw',
+        )
+        self._panel_frame.bind(
+            '<Configure>',
+            lambda e: self._panel_canvas.configure(scrollregion=self._panel_canvas.bbox('all')),
+        )
+        self._panel_canvas.bind(
+            '<Configure>',
+            lambda e: self._panel_canvas.itemconfig(panel_window_id, width=e.width),
+        )
+
+        def _on_panel_wheel(event):
+            widget = event.widget
+            while widget is not None and widget is not self.window:
+                if widget is panel_outer:
+                    self._panel_canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+                    return 'break'
+                widget = widget.master
+        self.window.bind('<MouseWheel>', _on_panel_wheel)
+
+        tk.Label(
+            self._panel_frame, text="Map Editor", bg='lightblue', font=self._font_header,
+        ).grid(row=0, column=0, columnspan=3, pady=(PANEL_PADY, 8), sticky='ew')
+
+        # Three equal-width column bays. minsize keeps the longest checkbox label legible even
+        # if the user shrinks the window narrower than the natural 3-column width.
+        for c in range(3):
+            self._panel_frame.grid_columnconfigure(
+                c, weight=1, uniform='cols', minsize=COLUMN_MIN_WIDTH_PX,
+            )
+
+        placement_col = tk.Frame(self._panel_frame, bg='lightblue')
+        placement_col.grid(row=1, column=0, padx=PANEL_PADX, pady=4, sticky='nsew')
+        inspector_col = tk.Frame(self._panel_frame, bg='lightblue')
+        inspector_col.grid(row=1, column=1, padx=PANEL_PADX, pady=4, sticky='nsew')
+        rotation_col = tk.Frame(self._panel_frame, bg='lightblue')
+        rotation_col.grid(row=1, column=2, padx=PANEL_PADX, pady=4, sticky='nsew')
 
         # Sticky flag defaults baked into newly-placed nodes. Independent from the inspector's
         # flag checkboxes (which edit the selected node). Lets the user batch-place a run of
         # nodes that all share a flag config without ticking it per-node.
+        tk.Label(
+            placement_col, text="Placement defaults",
+            bg='lightblue', fg=SECTION_HEADER_FG, font=self._font_section,
+        ).pack(anchor='w', pady=(0, 4))
+
+        self._placement_var = tk.StringVar(value="orange_node")
+        for label, value in (("blue_node", "blue_node"), ("orange_node", "orange_node")):
+            tk.Radiobutton(
+                placement_col, text=label, variable=self._placement_var, value=value,
+                bg='lightblue', font=self._font_body, command=self._onPlacementChange,
+            ).pack(anchor='w', padx=PANEL_PADX)
+
         self._placement_flag_vars = {
             "can_fall": tk.BooleanVar(),
             "fall_dist_exceeds_vertical_tp": tk.BooleanVar(),
@@ -118,35 +184,27 @@ class MapEditor:
         }
         for field_name, var in self._placement_flag_vars.items():
             tk.Checkbutton(
-                self._panel_frame,
-                text=field_name,
-                variable=var,
-                bg='lightblue',
-                font=self._font_body,
-            ).pack(anchor='w', padx=PANEL_PADX * 2)
+                placement_col, text=field_name, variable=var,
+                bg='lightblue', font=self._font_body,
+            ).pack(anchor='w', padx=PANEL_PADX)
 
-        tk.Label(self._panel_frame, text="Inspector", bg='lightblue',
-                 font=self._font_body).pack(anchor='w', padx=PANEL_PADX, pady=(12, 0))
-        self._inspector_frame = tk.Frame(self._panel_frame, bg='lightblue')
-        self._inspector_frame.pack(fill=tk.X, padx=PANEL_PADX)
+        tk.Label(
+            inspector_col, text="Inspector",
+            bg='lightblue', fg=SECTION_HEADER_FG, font=self._font_section,
+        ).pack(anchor='w', pady=(0, 4))
 
         self._inspector_pos_label = tk.Label(
-            self._inspector_frame, text="pos: —", bg='lightblue', font=self._font_body
+            inspector_col, text="pos: —", bg='lightblue', font=self._font_body,
         )
         self._inspector_pos_label.pack(anchor='w')
 
         self._inspector_nodetype_var = tk.StringVar(value="orange_node")
-        self._inspector_nodetype_frame = tk.Frame(self._inspector_frame, bg='lightblue')
-        self._inspector_nodetype_frame.pack(anchor='w')
+        nodetype_row = tk.Frame(inspector_col, bg='lightblue')
+        nodetype_row.pack(anchor='w')
         for label, value in (("blue", "blue_node"), ("orange", "orange_node")):
             tk.Radiobutton(
-                self._inspector_nodetype_frame,
-                text=label,
-                variable=self._inspector_nodetype_var,
-                value=value,
-                bg='lightblue',
-                font=self._font_body,
-                command=self._onInspectorNodetypeChange,
+                nodetype_row, text=label, variable=self._inspector_nodetype_var, value=value,
+                bg='lightblue', font=self._font_body, command=self._onInspectorNodetypeChange,
             ).pack(side=tk.LEFT)
 
         self._inspector_flag_vars = {
@@ -157,22 +215,22 @@ class MapEditor:
         }
         for field_name, var in self._inspector_flag_vars.items():
             tk.Checkbutton(
-                self._inspector_frame,
-                text=field_name,
-                variable=var,
-                bg='lightblue',
-                font=self._font_body,
+                inspector_col, text=field_name, variable=var,
+                bg='lightblue', font=self._font_body,
                 command=lambda f=field_name: self._onInspectorFlagChange(f),
             ).pack(anchor='w')
 
-        self._inspector_delete_btn = tk.Button(
-            self._inspector_frame,
-            text="Delete",
-            font=self._font_body,
-            padx=BUTTON_PADX, pady=BUTTON_PADY,
-            command=self._deleteSelected,
-        )
-        self._inspector_delete_btn.pack(anchor='w', pady=(4, 0))
+        tk.Button(
+            inspector_col, text="Delete", font=self._font_body,
+            padx=BUTTON_PADX, pady=BUTTON_PADY, command=self._deleteSelected,
+        ).pack(anchor='w', pady=(4, 0))
+
+        tk.Label(
+            rotation_col, text="Rotation order",
+            bg='lightblue', fg=SECTION_HEADER_FG, font=self._font_section,
+        ).pack(anchor='w', pady=(0, 4))
+        self._rotation_frame = tk.Frame(rotation_col, bg='lightblue')
+        self._rotation_frame.pack(fill=tk.X)
 
     def _waitForMinimapAndBuildCanvas(self):
         """
@@ -203,6 +261,7 @@ class MapEditor:
         self.minimap_canvas.bind("<Button-1>", self._onCanvasClick)
         self.window.bind("<Delete>", lambda e: self._deleteSelected())
         self._refreshInspector()  # start with empty inspector since no node is selected yet
+        self._refreshRotation()
 
     def _onPlacementChange(self):
         self.state.placement_nodetype = self._placement_var.get()
@@ -224,6 +283,7 @@ class MapEditor:
         self._markDirty()
         self._refreshInspector()
         self._renderNodes()
+        self._refreshRotation()
 
     def _onInspectorFlagChange(self, field_name):
         sid = self.state.selected_id
@@ -249,9 +309,47 @@ class MapEditor:
         for field_name, var in self._inspector_flag_vars.items():
             var.set(getattr(node, field_name))
 
+    def _refreshRotation(self):
+        """Rebuild the rotation order list widgets from current state."""
+        for child in self._rotation_frame.winfo_children():
+            child.destroy()
+        for idx, local_id in enumerate(self.state.rotation_order):
+            node = self.state.nodes[local_id]
+            row = tk.Frame(self._rotation_frame, bg='lightblue')
+            row.pack(fill=tk.X)
+            tk.Label(
+                row,
+                text=f"{idx + 1}. #{local_id} {node.pos}",
+                bg='lightblue',
+                font=self._font_body,
+            ).pack(side=tk.LEFT)
+            tk.Button(
+                row, text="↑", width=2,
+                font=self._font_body,
+                command=lambda i=idx: self._moveRotation(i, -1),
+            ).pack(side=tk.RIGHT)
+            tk.Button(
+                row, text="↓", width=2,
+                font=self._font_body,
+                command=lambda i=idx: self._moveRotation(i, +1),
+            ).pack(side=tk.RIGHT)
+
+    def _moveRotation(self, idx, delta):
+        new_idx = idx + delta
+        if new_idx < 0 or new_idx >= len(self.state.rotation_order):
+            return
+        order = self.state.rotation_order
+        order[idx], order[new_idx] = order[new_idx], order[idx]
+        self._markDirty()
+        self._refreshRotation()
+
     def _applyZoom(self):
         """Resize this editor's Font objects in place. Widgets referencing them auto-update."""
-        for key, font_obj in (("body", self._font_body), ("header", self._font_header)):
+        for key, font_obj in (
+            ("body", self._font_body),
+            ("header", self._font_header),
+            ("section", self._font_section),
+        ):
             base = self._base_font_sizes[key]
             font_obj.configure(size=max(1, int(round(base * self.zoom_factor))))
 
@@ -300,7 +398,8 @@ class MapEditor:
             self.state.selected_id = hit_id
         else:
             self._placeNode(native_x, native_y)
-        self._markDirty()
+            self._markDirty()
+            self._refreshRotation()
         self._refreshInspector()
         self._renderNodes()
 
@@ -339,6 +438,7 @@ class MapEditor:
         self._markDirty()
         self._refreshInspector()
         self._renderNodes()
+        self._refreshRotation()
 
     def _markDirty(self):
         if not self.state.dirty:
@@ -373,6 +473,15 @@ class MapEditor:
                 fill=fill, outline=outline, width=1,
                 tags=CANVAS_TAG_NODE,
             )
+            if node.nodetype == "blue_node":
+                self.minimap_canvas.create_text(
+                    sx + node_r + 2, sy,
+                    text=f"#{node.local_id}",
+                    anchor='w',
+                    fill=NODE_LABEL_FG,
+                    font=self._font_node_label,
+                    tags=CANVAS_TAG_NODE,
+                )
         if self.state.selected_id is not None and self.state.selected_id in self.state.nodes:
             x, y = self.state.nodes[self.state.selected_id].pos
             sx, sy = x * RENDER_SCALE, y * RENDER_SCALE

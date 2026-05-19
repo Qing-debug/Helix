@@ -544,7 +544,7 @@ class MapEditor:
             ux, uy = u.minimap_position
             vx, vy = v.minimap_position
             is_vertical = abs(vy - uy) > abs(vx - ux)
-            color = "gray20" if is_vertical else "gray60"
+            color = "darkgreen" if is_vertical else "limegreen"
             sx1, sy1 = ux * RENDER_SCALE, uy * RENDER_SCALE
             sx2, sy2 = vx * RENDER_SCALE, vy * RENDER_SCALE
             self.minimap_canvas.create_line(

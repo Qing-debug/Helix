@@ -13,6 +13,9 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from PIL import Image, ImageTk
 from src.controller.map_csv import EditorNode
+from src.controller.node import Node
+from src.controller.path_graph import PathGraph
+from returns.pipeline import is_successful
 
 
 RENDER_SCALE = 2  # minimap canvas + node coords rendered at this multiplier of native px
@@ -41,6 +44,8 @@ ZOOM_STEP = 0.1
 
 CANVAS_TAG_NODE = "editor_node"
 CANVAS_TAG_SELECTED = "editor_selected"
+CANVAS_TAG_EDGE = "editor_edge"
+CANVAS_TAG_BAND = "editor_band"
 
 
 @dataclass
@@ -232,6 +237,15 @@ class MapEditor:
         self._rotation_frame = tk.Frame(rotation_col, bg='lightblue')
         self._rotation_frame.pack(fill=tk.X)
 
+        self._show_edges_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            self._panel_frame,
+            text="Show edges",
+            variable=self._show_edges_var,
+            bg='lightblue', font=self._font_body,
+            command=self._renderPreview,
+        ).grid(row=2, column=0, columnspan=3, sticky='w', padx=PANEL_PADX, pady=(12, 0))
+
     def _waitForMinimapAndBuildCanvas(self):
         """
         Poll sharedInfo for a non-None minimap frame, then build the editor's
@@ -292,7 +306,7 @@ class MapEditor:
         node = self.state.nodes[sid]
         setattr(node, field_name, bool(self._inspector_flag_vars[field_name].get()))
         self._markDirty()
-        # No re-render needed for flag changes alone; preview rendering (Task 12) will hook in here.
+        self._renderNodes()  # is_left/right_platform_edge affect vertical edge validity
 
     def _refreshInspector(self):
         """Sync inspector widgets to the currently selected node."""
@@ -452,13 +466,102 @@ class MapEditor:
         name = self.state.current_file or "untitled"
         self.window.title(f"{prefix}{name} — Map Editor")
 
+    def _buildPreviewGraph(self):
+        """
+        Build a throwaway PathGraph that matches what the runtime would build after
+        a save → load cycle of the current editor state.
+
+        Insertion order into node_map mirrors map_csv.write_editor_nodes: rotation-order
+        blue_nodes first, then orange_nodes sorted by local_id. This matters because
+        PathGraph._findClosest* methods break distance ties by keeping the first-inserted
+        candidate (strict `>` comparison), so iteration order can flip edges in tie cases.
+
+        Returns (path_graph, id_to_node) where id_to_node maps each EditorNode's
+        local_id to the Node instance built for the preview. Bumps Node.node_id_counter
+        every call — accepted tradeoff documented under Task 12 in the plan; UUIDs are
+        runtime-only and not persisted.
+        """
+        order = list(self.state.rotation_order)
+        order += sorted(
+            lid for lid, n in self.state.nodes.items()
+            if n.nodetype != "blue_node"
+        )
+        id_to_node = {}
+        node_map = {}
+        for local_id in order:
+            editor_node = self.state.nodes[local_id]
+            n = Node(
+                nodetype=editor_node.nodetype,
+                minimap_pos=editor_node.pos,
+                can_fall=editor_node.can_fall,
+                fall_dist_exceeds_vertical_tp=editor_node.fall_dist_exceeds_vertical_tp,
+                is_left_platform_edge=editor_node.is_left_platform_edge,
+                is_right_platform_edge=editor_node.is_right_platform_edge,
+            )
+            node_map[n.uuid] = n
+            id_to_node[editor_node.local_id] = n
+        path_graph = PathGraph(
+            node_map=node_map,
+            edge_y_alignment_allowance=self.controller.agent.edge_y_tolerance_level,
+            edge_x_alignment_allowance=self.controller.agent.edge_x_tolerance_level,
+        )
+        build_res = path_graph.buildGraph()
+        if not is_successful(build_res):
+            # Empty editor returns Failure("Node_dict is empty.") — just return no edges.
+            return path_graph, id_to_node
+        return path_graph, id_to_node
+
+    def _renderPreview(self):
+        """Render preview overlays (edges now; bands in Task 13). Called whenever toggles or state change."""
+        if self.minimap_canvas is None:
+            return
+        self.minimap_canvas.delete(CANVAS_TAG_EDGE)
+        self.minimap_canvas.delete(CANVAS_TAG_BAND)
+        if not self._show_edges_var.get():
+            return
+        path_graph, id_to_node = self._buildPreviewGraph()
+        if not id_to_node:
+            return
+        # Classify edges horizontal vs vertical by Δy vs Δx; minimap_position is native
+        # coords, multiply by RENDER_SCALE for canvas pixels (same pattern as _renderNodes).
+        # Dedupe by unordered pair so one line renders per pair; arrowheads encode which
+        # directed edges actually exist (asymmetric vertical edges with platform-edge gating
+        # would otherwise look bidirectional to the eye — see _isVerticalEdgeValid).
+        drawn = set()
+        for u, v in path_graph.graph.edges():
+            key = frozenset((u, v))
+            if key in drawn:
+                continue
+            drawn.add(key)
+            has_uv = path_graph.graph.has_edge(u, v)
+            has_vu = path_graph.graph.has_edge(v, u)
+            if has_uv and has_vu:
+                arrow_spec = tk.BOTH
+            elif has_uv:
+                arrow_spec = tk.LAST
+            else:
+                arrow_spec = tk.FIRST
+            ux, uy = u.minimap_position
+            vx, vy = v.minimap_position
+            is_vertical = abs(vy - uy) > abs(vx - ux)
+            color = "gray20" if is_vertical else "gray60"
+            sx1, sy1 = ux * RENDER_SCALE, uy * RENDER_SCALE
+            sx2, sy2 = vx * RENDER_SCALE, vy * RENDER_SCALE
+            self.minimap_canvas.create_line(
+                sx1, sy1, sx2, sy2,
+                fill=color, width=1, arrow=arrow_spec,
+                tags=CANVAS_TAG_EDGE,
+            )
+
     def _renderNodes(self):
-        """Redraw all nodes + the selected-ring overlay. Edges/bands land in Tasks 12-13.
+        """Redraw all nodes + the selected-ring overlay. Calls _renderPreview first so
+        node dots sit on top of edge/band overlays.
 
         node.pos is in native minimap coords; multiply by RENDER_SCALE for canvas pixels.
         """
         if self.minimap_canvas is None:
             return
+        self._renderPreview()
         self.minimap_canvas.delete(CANVAS_TAG_NODE)
         self.minimap_canvas.delete(CANVAS_TAG_SELECTED)
         node_r = NODE_DRAW_RADIUS_PX * RENDER_SCALE

@@ -8,11 +8,14 @@ canvas and _updateCanvas loop.
 """
 
 import tkinter as tk
+import tkinter.filedialog as filedialog
 import tkinter.font as tkfont
+import tkinter.messagebox as messagebox
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, List, Optional
 from PIL import Image, ImageTk
-from src.controller.map_csv import EditorNode
+from src.controller.map_csv import EditorNode, read_editor_nodes, write_editor_nodes
 from src.controller.node import Node
 from src.controller.path_graph import PathGraph
 from returns.pipeline import is_successful
@@ -255,6 +258,24 @@ class MapEditor:
             command=self._renderPreview,
         ).grid(row=3, column=0, columnspan=3, sticky='w', padx=PANEL_PADX)
 
+        # File section is its own child frame so the buttons can pack(fill=tk.X) inside
+        # without mixing geometry managers with the panel grid above.
+        file_section = tk.Frame(self._panel_frame, bg='lightblue')
+        file_section.grid(row=4, column=0, columnspan=3, sticky='ew', padx=PANEL_PADX, pady=(12, 0))
+        tk.Label(
+            file_section, text="File",
+            bg='lightblue', fg=SECTION_HEADER_FG, font=self._font_section,
+        ).pack(anchor='w', pady=(0, 4))
+        tk.Button(
+            file_section, text="Save", font=self._font_body, command=self._save,
+        ).pack(fill=tk.X, pady=2)
+        tk.Button(
+            file_section, text="Save As…", font=self._font_body, command=self._saveAs,
+        ).pack(fill=tk.X, pady=2)
+        tk.Button(
+            file_section, text="Load CSV…", font=self._font_body, command=self._load,
+        ).pack(fill=tk.X, pady=2)
+
     def _waitForMinimapAndBuildCanvas(self):
         """
         Poll sharedInfo for a non-None minimap frame, then build the editor's
@@ -466,14 +487,61 @@ class MapEditor:
     def _markDirty(self):
         if not self.state.dirty:
             self.state.dirty = True
-            # title bar update lands in Task 14 — placeholder for now
             self._refreshTitle()
 
     def _refreshTitle(self):
-        """Composes the title bar. Body is a placeholder until Task 14 ties Save state in."""
+        """Composes the title bar from dirty marker + current file name (basename only)."""
         prefix = "* " if self.state.dirty else ""
-        name = self.state.current_file or "untitled"
+        name = Path(self.state.current_file).name if self.state.current_file else "untitled"
         self.window.title(f"{prefix}{name} — Map Editor")
+
+    def _save(self):
+        """Save to current_file; falls through to Save As when none is set."""
+        if self.state.current_file is None:
+            self._saveAs()
+            return
+        self._writeTo(self.state.current_file)
+
+    def _saveAs(self):
+        """Always open a file dialog and write to the chosen path. Updates current_file on success."""
+        path = filedialog.asksaveasfilename(
+            parent=self.window,
+            title="Save Map As",
+            initialdir="maps",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv")],
+        )
+        if not path:
+            return
+        self._writeTo(path)
+
+    def _writeTo(self, path):
+        """Write current editor state to path. Updates current_file + clears dirty on success.
+
+        Shows a success messagebox so save is always confirmed to the user (symmetric
+        with the failure path); the full path is included so the user can verify location.
+        """
+        # Validation gate goes here in Task 17; for now, write unconditionally.
+        result = write_editor_nodes(path, self.state.nodes, self.state.rotation_order)
+        if not is_successful(result):
+            messagebox.showerror(
+                "Save failed",
+                f"Could not write {path}:\n\n{result.failure()}",
+                parent=self.window,
+            )
+            return
+        self.state.current_file = path
+        self.state.dirty = False
+        self._refreshTitle()
+        messagebox.showinfo(
+            "Saved",
+            f"Saved to {path}",
+            parent=self.window,
+        )
+
+    def _load(self):
+        """Implemented in Task 15."""
+        pass
 
     def _buildPreviewGraph(self):
         """

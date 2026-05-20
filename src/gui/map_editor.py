@@ -540,8 +540,68 @@ class MapEditor:
         )
 
     def _load(self):
-        """Implemented in Task 15."""
-        pass
+        """Load a CSV into the editor.
+
+        If state is dirty, prompts Save/Discard/Cancel first:
+          - Cancel: abort the load entirely.
+          - Save: run the standard save flow (silent overwrite if current_file is set,
+            else Save As). Afterwards, if state is still dirty (Save As cancelled OR
+            write_editor_nodes failed), abort the load. Otherwise proceed.
+          - Discard: fall through to the load dialog, abandoning unsaved changes.
+        """
+        if self.state.dirty:
+            name = Path(self.state.current_file).name if self.state.current_file else "untitled"
+            resp = messagebox.askyesnocancel(
+                "Unsaved changes",
+                f"You have unsaved changes to {name}.\nSave before loading?",
+                parent=self.window,
+            )
+            if resp is None:
+                return  # user cancelled
+            if resp is True:
+                self._save()
+                # If user cancelled Save As, current_file may still be None and dirty still True.
+                if self.state.dirty:
+                    return
+            # resp is False: discard — fall through to the load dialog.
+
+        path = filedialog.askopenfilename(
+            parent=self.window,
+            title="Load Map CSV",
+            initialdir="maps",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+        )
+        if not path:
+            return  # user cancelled the load dialog
+
+        result = read_editor_nodes(path)
+        if not is_successful(result):
+            reason = result.failure()
+            print(f"[MapEditor] Load failed for {path}: {reason}")  # dev log
+            messagebox.showerror(
+                "Could not load map",
+                f'Could not load "{Path(path).name}".\n\n'
+                "The file is not a valid Helix map CSV. It may be:\n"
+                "  • Not a Helix map file\n"
+                "  • Corrupted, or edited externally with invalid values\n"
+                "  • Missing required columns\n\n"
+                "Your current editor state has not been changed.\n\n"
+                f"Details: {reason}",
+                parent=self.window,
+            )
+            return
+
+        nodes_list, rotation_order = result.unwrap()
+        self.state.nodes = {n.local_id: n for n in nodes_list}
+        self.state.rotation_order = list(rotation_order)
+        self.state.selected_id = None
+        self.state.next_local_id = (max(self.state.nodes) + 1) if self.state.nodes else 1
+        self.state.current_file = path
+        self.state.dirty = False
+        self._refreshTitle()
+        self._refreshInspector()
+        self._refreshRotation()
+        self._renderNodes()
 
     def _buildPreviewGraph(self):
         """

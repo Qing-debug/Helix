@@ -246,6 +246,15 @@ class MapEditor:
             command=self._renderPreview,
         ).grid(row=2, column=0, columnspan=3, sticky='w', padx=PANEL_PADX, pady=(12, 0))
 
+        self._show_bands_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            self._panel_frame,
+            text="Show bands",
+            variable=self._show_bands_var,
+            bg='lightblue', font=self._font_body,
+            command=self._renderPreview,
+        ).grid(row=3, column=0, columnspan=3, sticky='w', padx=PANEL_PADX)
+
     def _waitForMinimapAndBuildCanvas(self):
         """
         Poll sharedInfo for a non-None minimap frame, then build the editor's
@@ -512,46 +521,72 @@ class MapEditor:
         return path_graph, id_to_node
 
     def _renderPreview(self):
-        """Render preview overlays (edges now; bands in Task 13). Called whenever toggles or state change."""
+        """Render preview overlays (edges + tolerance bands). Called whenever toggles or state change.
+
+        Edges and bands are gated independently; bands need a selected node, edges don't.
+        """
         if self.minimap_canvas is None:
             return
         self.minimap_canvas.delete(CANVAS_TAG_EDGE)
         self.minimap_canvas.delete(CANVAS_TAG_BAND)
-        if not self._show_edges_var.get():
-            return
-        path_graph, id_to_node = self._buildPreviewGraph()
-        if not id_to_node:
-            return
-        # Classify edges horizontal vs vertical by Δy vs Δx; minimap_position is native
-        # coords, multiply by RENDER_SCALE for canvas pixels (same pattern as _renderNodes).
-        # Dedupe by unordered pair so one line renders per pair; arrowheads encode which
-        # directed edges actually exist (asymmetric vertical edges with platform-edge gating
-        # would otherwise look bidirectional to the eye — see _isVerticalEdgeValid).
-        drawn = set()
-        for u, v in path_graph.graph.edges():
-            key = frozenset((u, v))
-            if key in drawn:
-                continue
-            drawn.add(key)
-            has_uv = path_graph.graph.has_edge(u, v)
-            has_vu = path_graph.graph.has_edge(v, u)
-            if has_uv and has_vu:
-                arrow_spec = tk.BOTH
-            elif has_uv:
-                arrow_spec = tk.LAST
-            else:
-                arrow_spec = tk.FIRST
-            ux, uy = u.minimap_position
-            vx, vy = v.minimap_position
-            is_vertical = abs(vy - uy) > abs(vx - ux)
-            color = "darkgreen" if is_vertical else "limegreen"
-            sx1, sy1 = ux * RENDER_SCALE, uy * RENDER_SCALE
-            sx2, sy2 = vx * RENDER_SCALE, vy * RENDER_SCALE
-            self.minimap_canvas.create_line(
-                sx1, sy1, sx2, sy2,
-                fill=color, width=1, arrow=arrow_spec,
-                tags=CANVAS_TAG_EDGE,
-            )
+        if self._show_edges_var.get():
+            path_graph, id_to_node = self._buildPreviewGraph()
+            if id_to_node:
+                # Classify edges horizontal vs vertical by Δy vs Δx; minimap_position is native
+                # coords, multiply by RENDER_SCALE for canvas pixels (same pattern as _renderNodes).
+                # Dedupe by unordered pair so one line renders per pair; arrowheads encode which
+                # directed edges actually exist (asymmetric vertical edges with platform-edge gating
+                # would otherwise look bidirectional to the eye — see _isVerticalEdgeValid).
+                drawn = set()
+                for u, v in path_graph.graph.edges():
+                    key = frozenset((u, v))
+                    if key in drawn:
+                        continue
+                    drawn.add(key)
+                    has_uv = path_graph.graph.has_edge(u, v)
+                    has_vu = path_graph.graph.has_edge(v, u)
+                    if has_uv and has_vu:
+                        arrow_spec = tk.BOTH
+                    elif has_uv:
+                        arrow_spec = tk.LAST
+                    else:
+                        arrow_spec = tk.FIRST
+                    ux, uy = u.minimap_position
+                    vx, vy = v.minimap_position
+                    is_vertical = abs(vy - uy) > abs(vx - ux)
+                    color = "darkgreen" if is_vertical else "limegreen"
+                    sx1, sy1 = ux * RENDER_SCALE, uy * RENDER_SCALE
+                    sx2, sy2 = vx * RENDER_SCALE, vy * RENDER_SCALE
+                    self.minimap_canvas.create_line(
+                        sx1, sy1, sx2, sy2,
+                        fill=color, width=1, arrow=arrow_spec,
+                        tags=CANVAS_TAG_EDGE,
+                    )
+        if self._show_bands_var.get() and self.state.selected_id is not None:
+            sel = self.state.nodes.get(self.state.selected_id)
+            if sel is not None:
+                # Dashed-outline rectangles (no fill) visualize the ±y / ±x tolerance windows
+                # PathGraph uses when picking neighbours for horizontal / vertical edges.
+                # Tk has no native alpha blending, so dashed outline + no fill keeps the
+                # minimap underneath readable.
+                y_tol = self.controller.agent.edge_y_tolerance_level
+                x_tol = self.controller.agent.edge_x_tolerance_level
+                sx = sel.pos[0] * RENDER_SCALE
+                sy = sel.pos[1] * RENDER_SCALE
+                y_tol_px = y_tol * RENDER_SCALE
+                x_tol_px = x_tol * RENDER_SCALE
+                w = self.minimap_canvas_width
+                h = self.minimap_canvas_height
+                self.minimap_canvas.create_rectangle(
+                    0, sy - y_tol_px, w, sy + y_tol_px,
+                    outline="blue", dash=(2, 4), width=1,
+                    tags=CANVAS_TAG_BAND,
+                )
+                self.minimap_canvas.create_rectangle(
+                    sx - x_tol_px, 0, sx + x_tol_px, h,
+                    outline="purple", dash=(2, 4), width=1,
+                    tags=CANVAS_TAG_BAND,
+                )
 
     def _renderNodes(self):
         """Redraw all nodes + the selected-ring overlay. Calls _renderPreview first so

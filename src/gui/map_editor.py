@@ -603,6 +603,30 @@ class MapEditor:
         self._refreshRotation()
         self._renderNodes()
 
+    def _onCloseRequest(self):
+        """Hooked to WM_DELETE_WINDOW via gui.py. Returns True if the window should be
+        destroyed, False if the user cancelled (so gui.py knows whether to clear its ref).
+
+        When dirty, prompts Save/Discard/Cancel. Cancel → False. Discard → True. Save runs
+        the standard save flow; if state is still dirty after (Save As cancelled OR write
+        failed), treat as a cancel and keep the window open.
+        """
+        if not self.state.dirty:
+            return True
+        name = Path(self.state.current_file).name if self.state.current_file else "untitled"
+        resp = messagebox.askyesnocancel(
+            "Unsaved changes",
+            f"You have unsaved changes to {name}.\nSave before closing?",
+            parent=self.window,
+        )
+        if resp is None:
+            return False
+        if resp is True:
+            self._save()
+            if self.state.dirty:
+                return False
+        return True
+
     def _buildPreviewGraph(self):
         """
         Build a throwaway PathGraph that matches what the runtime would build after

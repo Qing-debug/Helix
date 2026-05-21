@@ -263,11 +263,13 @@ class MapleGUI:
             self.map_editor.window.focus_force()
             return
         self.map_editor = MapEditor(self.gui, self.controller, self.sharedInfo)
-        # When the editor window closes, drop our reference so the next click opens a fresh one.
-        self.map_editor.window.protocol(
-            "WM_DELETE_WINDOW",
-            lambda: (self.map_editor.window.destroy(), setattr(self, "map_editor", None)),
-        )
+        # Close routes through MapEditor._onCloseRequest so the unsaved-changes modal can veto.
+        # We only destroy and clear our reference when it returns True; cancel keeps the window.
+        def _on_editor_close():
+            if self.map_editor._onCloseRequest():
+                self.map_editor.window.destroy()
+                self.map_editor = None
+        self.map_editor.window.protocol("WM_DELETE_WINDOW", _on_editor_close)
 
     #Without mocking the environment, we don't get to take advantage of _setupAgent telling us it failed. We're only using this for testing purposes
     def mockSetupAgentEnvironment(self):

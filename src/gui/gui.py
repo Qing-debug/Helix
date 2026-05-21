@@ -263,10 +263,10 @@ class MapleGUI:
             self.map_editor.window.focus_force()
             return
         self.map_editor = MapEditor(self.gui, self.controller, self.sharedInfo)
-        # Close routes through MapEditor._onCloseRequest so the unsaved-changes modal can veto.
+        # Close routes through MapEditor._okToClose so the unsaved-changes modal can veto.
         # We only destroy and clear our reference when it returns True; cancel keeps the window.
         def _on_editor_close():
-            if self.map_editor._onCloseRequest():
+            if self.map_editor._okToClose():
                 self.map_editor.window.destroy()
                 self.map_editor = None
         self.map_editor.window.protocol("WM_DELETE_WINDOW", _on_editor_close)

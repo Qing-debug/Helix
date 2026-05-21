@@ -49,6 +49,7 @@ CANVAS_TAG_NODE = "editor_node"
 CANVAS_TAG_SELECTED = "editor_selected"
 CANVAS_TAG_EDGE = "editor_edge"
 CANVAS_TAG_BAND = "editor_band"
+CANVAS_TAG_ORPHAN = "editor_orphan"
 
 
 @dataclass
@@ -258,10 +259,22 @@ class MapEditor:
             command=self._renderPreview,
         ).grid(row=3, column=0, columnspan=3, sticky='w', padx=PANEL_PADX)
 
+        # Orphan highlight is a separate render path (not a "preview" overlay) — it draws
+        # over the dots, not behind them, so toggling re-runs _renderNodes (which sequences
+        # preview → dots → orphan X → selected ring).
+        self._show_orphans_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            self._panel_frame,
+            text="Highlight orphans",
+            variable=self._show_orphans_var,
+            bg='lightblue', font=self._font_body,
+            command=self._renderNodes,
+        ).grid(row=4, column=0, columnspan=3, sticky='w', padx=PANEL_PADX)
+
         # File section is its own child frame so the buttons can pack(fill=tk.X) inside
         # without mixing geometry managers with the panel grid above.
         file_section = tk.Frame(self._panel_frame, bg='lightblue')
-        file_section.grid(row=4, column=0, columnspan=3, sticky='ew', padx=PANEL_PADX, pady=(12, 0))
+        file_section.grid(row=5, column=0, columnspan=3, sticky='ew', padx=PANEL_PADX, pady=(12, 0))
         tk.Label(
             file_section, text="File",
             bg='lightblue', fg=SECTION_HEADER_FG, font=self._font_section,
@@ -496,14 +509,43 @@ class MapEditor:
         self.window.title(f"{prefix}{name} — Map Editor")
 
     def _save(self):
-        """Save to current_file; falls through to Save As when none is set."""
-        if self.state.current_file is None:
-            self._saveAs()
+        """Save to current_file; falls through to Save As when none is set.
+
+        Pre-save validation runs BEFORE any file dialog so the user isn't asked to pick
+        a filename for a save that will be rejected.
+        """
+        if not self._okToSave():
             return
-        self._writeTo(self.state.current_file)
+        if self.state.current_file is None:
+            self._promptAndWrite()
+        else:
+            self._writeTo(self.state.current_file)
 
     def _saveAs(self):
-        """Always open a file dialog and write to the chosen path. Updates current_file on success."""
+        """Always prompts for a path (useful for renaming the file under edit).
+
+        Pre-save validation runs BEFORE the file dialog opens.
+        """
+        if not self._okToSave():
+            return
+        self._promptAndWrite()
+
+    def _okToSave(self) -> bool:
+        """Run validation and surface block/warn modals. Returns True iff save should proceed."""
+        verdict, message = self._validateForSave()
+        if verdict == "block":
+            messagebox.showerror("Cannot save", message, parent=self.window)
+            return False
+        if verdict == "warn":
+            proceed = messagebox.askokcancel(
+                "Validation warnings", message, parent=self.window,
+            )
+            if not proceed:
+                return False
+        return True
+
+    def _promptAndWrite(self):
+        """Open Save As dialog and write to the chosen path. Assumes _okToSave already passed."""
         path = filedialog.asksaveasfilename(
             parent=self.window,
             title="Save Map As",
@@ -515,13 +557,77 @@ class MapEditor:
             return
         self._writeTo(path)
 
-    def _writeTo(self, path):
-        """Write current editor state to path. Updates current_file + clears dirty on success.
+    def _validateForSave(self):
+        """Pre-save check. Returns one of:
+          ("ok", "")        — proceed silently
+          ("warn", message) — show askokcancel; OK proceeds, Cancel aborts
+          ("block", message) — show showerror; abort save unconditionally
 
-        Shows a success messagebox so save is always confirmed to the user (symmetric
-        with the failure path); the full path is included so the user can verify location.
+        Hard block: rotation_order empty (no blue_nodes — agent has nothing to rotate to).
+        Soft warnings: duplicate positions, off-minimap positions, orphan nodes.
         """
-        # Validation gate goes here in Task 17; for now, write unconditionally.
+        # rotation_order is kept in lockstep with blue_node membership by _placeNode,
+        # _deleteSelected, _onInspectorNodetypeChange, and CSV load; empty ⇔ no blue_nodes.
+        if not self.state.rotation_order:
+            return ("block",
+                    "Cannot save: at least one blue_node is required.\n"
+                    "The agent has nothing to rotate to.")
+
+        issues = []
+
+        positions = {}
+        for node in self.state.nodes.values():
+            positions.setdefault(node.pos, []).append(node.local_id)
+        dupes = {p: ids for p, ids in positions.items() if len(ids) > 1}
+        # One bullet per affected node so each issue requiring a fix is visually distinct;
+        # include position so the user can match the ID to a dot on the minimap without
+        # toggling "Highlight orphans" on.
+        # Duplicates group by position (one bullet per colliding pos with all node IDs), since
+        # the unit of repair is the position — move one of the colliding dots. Off-bounds and
+        # orphans below bullet per-node because each is fixed independently.
+        if dupes:
+            issues.append("Duplicate positions:")
+            for pos, ids in dupes.items():
+                issues.append(f"  • {pos}: nodes #{', #'.join(str(i) for i in ids)}")
+
+        # node.pos is in native minimap coords; canvas dimensions are scaled by RENDER_SCALE,
+        # so divide back to compare against the native frame. Clicks always land inside the
+        # canvas (i.e., in-bounds native pos), so this check only fires for CSV-loaded nodes
+        # with out-of-range coords.
+        if self.minimap_canvas_width is not None and self.minimap_canvas_height is not None:
+            native_w = self.minimap_canvas_width // RENDER_SCALE
+            native_h = self.minimap_canvas_height // RENDER_SCALE
+            off_nodes = [
+                n for n in self.state.nodes.values()
+                if not (0 <= n.pos[0] < native_w and 0 <= n.pos[1] < native_h)
+            ]
+            if off_nodes:
+                issues.append(f"Nodes outside minimap bounds ({native_w}x{native_h}):")
+                for n in off_nodes:
+                    issues.append(f"  • #{n.local_id} at {n.pos}")
+
+        # Same accepted tradeoff as the edge-preview path (Task 12): bumps Node.node_id_counter.
+        path_graph, id_to_node = self._buildPreviewGraph()
+        connected_nodes = {n for edge in path_graph.graph.edges() for n in edge}
+        orphan_nodes = [
+            self.state.nodes[lid] for lid, n in id_to_node.items()
+            if n not in connected_nodes
+        ]
+        if orphan_nodes:
+            issues.append("Orphan nodes (no edges):")
+            for n in orphan_nodes:
+                issues.append(f"  • #{n.local_id} at {n.pos}")
+
+        if issues:
+            return ("warn", "\n".join(issues) + "\n\nSave anyway?")
+        return ("ok", "")
+
+    def _writeTo(self, path):
+        """Pure I/O step: write current editor state to path; show success/failure modal.
+
+        Validation is the caller's responsibility (`_okToSave` runs in `_save` /
+        `_saveAs` before any file dialog).
+        """
         result = write_editor_nodes(path, self.state.nodes, self.state.rotation_order)
         if not is_successful(result):
             messagebox.showerror(
@@ -592,6 +698,33 @@ class MapEditor:
             return
 
         nodes_list, rotation_order = result.unwrap()
+
+        # Pre-mutation bounds check. CSV stores native coords; if any node falls outside
+        # the current minimap's native dimensions the file likely came from a different
+        # MapleStory window size (or was hand-edited). Refuse the load so the user doesn't
+        # end up with invisible off-canvas nodes silently populating state.
+        if self.minimap_canvas_width is not None and self.minimap_canvas_height is not None:
+            native_w = self.minimap_canvas_width // RENDER_SCALE
+            native_h = self.minimap_canvas_height // RENDER_SCALE
+            off_nodes = [
+                n for n in nodes_list
+                if not (0 <= n.pos[0] < native_w and 0 <= n.pos[1] < native_h)
+            ]
+            if off_nodes:
+                # One bullet per offending node + its position, so each problem the user
+                # needs to fix is enumerable.
+                bullet_list = "\n".join(f"  • #{n.local_id} at {n.pos}" for n in off_nodes)
+                messagebox.showerror(
+                    "Could not load map",
+                    f'Could not load "{Path(path).name}".\n\n'
+                    f"Nodes are outside the current minimap bounds ({native_w}x{native_h}):\n"
+                    f"{bullet_list}\n\n"
+                    "Fix: ensure your current minimap dimensions match the minimap dimensions in use when this CSV was created.\n\n"
+                    "Your current editor state has not been changed.",
+                    parent=self.window,
+                )
+                return
+
         self.state.nodes = {n.local_id: n for n in nodes_list}
         self.state.rotation_order = list(rotation_order)
         self.state.selected_id = None
@@ -603,7 +736,7 @@ class MapEditor:
         self._refreshRotation()
         self._renderNodes()
 
-    def _onCloseRequest(self):
+    def _okToClose(self):
         """Hooked to WM_DELETE_WINDOW via gui.py. Returns True if the window should be
         destroyed, False if the user cancelled (so gui.py knows whether to clear its ref).
 
@@ -740,10 +873,40 @@ class MapEditor:
                     tags=CANVAS_TAG_BAND,
                 )
 
+    def _renderOrphanHighlights(self):
+        """Draw a red X within each orphan node's circle when the 'Highlight orphans' toggle is on.
+
+        Orphan = no edges to or from this node in the throwaway preview graph. Helps the
+        user visually identify isolated nodes (especially orange ones, which don't get
+        local_id labels on the canvas) when the orphan warning lists ids.
+        """
+        if not self._show_orphans_var.get():
+            return
+        path_graph, id_to_node = self._buildPreviewGraph()
+        if not id_to_node:
+            return
+        connected_nodes = {n for edge in path_graph.graph.edges() for n in edge}
+        node_r = NODE_DRAW_RADIUS_PX * RENDER_SCALE
+        for local_id, node in id_to_node.items():
+            if node in connected_nodes:
+                continue
+            editor_node = self.state.nodes[local_id]
+            sx, sy = editor_node.pos[0] * RENDER_SCALE, editor_node.pos[1] * RENDER_SCALE
+            # Two diagonals spanning the dot diameter form an X inside the circle.
+            self.minimap_canvas.create_line(
+                sx - node_r, sy - node_r, sx + node_r, sy + node_r,
+                fill="red", width=2, tags=CANVAS_TAG_ORPHAN,
+            )
+            self.minimap_canvas.create_line(
+                sx - node_r, sy + node_r, sx + node_r, sy - node_r,
+                fill="red", width=2, tags=CANVAS_TAG_ORPHAN,
+            )
+
     def _renderNodes(self):
         """Redraw all nodes + the selected-ring overlay. Calls _renderPreview first so
         node dots sit on top of edge/band overlays.
 
+        Render order: preview (edges + bands) → node dots → orphan X overlay → selected ring.
         node.pos is in native minimap coords; multiply by RENDER_SCALE for canvas pixels.
         """
         if self.minimap_canvas is None:
@@ -751,6 +914,7 @@ class MapEditor:
         self._renderPreview()
         self.minimap_canvas.delete(CANVAS_TAG_NODE)
         self.minimap_canvas.delete(CANVAS_TAG_SELECTED)
+        self.minimap_canvas.delete(CANVAS_TAG_ORPHAN)
         node_r = NODE_DRAW_RADIUS_PX * RENDER_SCALE
         for node in self.state.nodes.values():
             x, y = node.pos
@@ -772,6 +936,7 @@ class MapEditor:
                     font=self._font_node_label,
                     tags=CANVAS_TAG_NODE,
                 )
+        self._renderOrphanHighlights()
         if self.state.selected_id is not None and self.state.selected_id in self.state.nodes:
             x, y = self.state.nodes[self.state.selected_id].pos
             sx, sy = x * RENDER_SCALE, y * RENDER_SCALE

@@ -232,6 +232,7 @@ class MapleAgent:
             edge_y_alignment_allowance=self.edge_y_tolerance_level,
             edge_x_alignment_allowance=self.edge_x_tolerance_level,
             max_horizontal_traversal_dist=self.characterClass.max_horizontal_traversal_dist,
+            max_vertical_traversal_dist=self.characterClass.max_vertical_traversal_dist,
         ))
 
     def _setupPathGraph(self) -> Result[None, str]:

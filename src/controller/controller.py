@@ -42,6 +42,9 @@ class Controller:
     def deleteNode(self, node: Node) -> None:
         self.agent.deleteNode(node)
 
+    def setCharacterClass(self, character_class) -> None:
+        self.agent.setCharacterClass(character_class)
+
     def loadMap(self, csv_path) -> Result[None, str]:
         """
         Swap the agent's active map to the CSV at csv_path and rebuild the graph.
@@ -88,6 +91,13 @@ class MapleAgent:
         self.node_map = {}
         self.pathGraph = None
 
+    def setCharacterClass(self, character_class) -> None:
+        """Replace the agent's character class. Caller is responsible for
+        re-running setupAgent() afterward if a graph already exists — this
+        setter alone does NOT rebuild the graph (mid-session swap doesn't
+        auto-rebuild; next loadMap() / setupAgent() picks it up)."""
+        self.characterClass = character_class
+
     def setCSV(self, csv_path) -> None:
         """
         Replace the CSV the agent loads from. Caller is responsible for
@@ -111,7 +121,9 @@ class MapleAgent:
         # STEP 1: Initialize PathGraph with references to MapleAgent's data containers
         # PathGraph will hold references to self.node_map (empty)
         # This avoids the fragile initialization order we had before
-        self._setupPathGraph()
+        setup_path_graph_res = self._setupPathGraph()
+        if not is_successful(setup_path_graph_res):
+            return setup_path_graph_res
 
         # STEP 2: Parse CSV to populate the containers PathGraph references
         # Fills self.node_map (used by PathGraph) and self.map_rotation_order (used by MapleAgent)
@@ -195,8 +207,32 @@ class MapleAgent:
     def deleteNode(self, node: Node) -> None:
         self.pathGraph.deleteNode(node)
 
-    def _setupPathGraph(self) -> None:
-        self.pathGraph = PathGraph(self.node_map, edge_y_alignment_allowance = self.edge_y_tolerance_level, edge_x_alignment_allowance = self.edge_x_tolerance_level)
+    def buildPathGraphFor(self, node_map) -> Result[PathGraph, str]:
+        """Single construction site for PathGraph. Returns Failure when no
+        character class is selected — PathGraph requires the character's
+        max horizontal traversal distance, which we cannot synthesize.
+
+        Used by both runtime (_setupPathGraph) and the Map Editor preview
+        (MapEditor._buildPreviewGraph). Keeps PathGraph unaware of
+        CharacterClass — it consumes the int directly."""
+        if self.characterClass is None:
+            return Failure(
+                "No character selected. Pick a character in the main window "
+                "before building the path graph."
+            )
+        return Success(PathGraph(
+            node_map=node_map,
+            edge_y_alignment_allowance=self.edge_y_tolerance_level,
+            edge_x_alignment_allowance=self.edge_x_tolerance_level,
+            max_horizontal_traversal_dist=self.characterClass.max_horizontal_traversal_dist,
+        ))
+
+    def _setupPathGraph(self) -> Result[None, str]:
+        res = self.buildPathGraphFor(self.node_map)
+        if not is_successful(res):
+            return res
+        self.pathGraph = res.unwrap()
+        return Success(None)
 
     def _computeDirectionOfTravel(self, char_node: CharacterNode, target_node: Node):
         char_x, char_y = char_node.minimap_position

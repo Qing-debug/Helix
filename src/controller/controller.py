@@ -23,7 +23,7 @@ class Controller:
     def getCharacterCoords(self) -> (int, int):
         return self.agent.getCharacterCoords()
 
-    #will throw error if called before _setupAgent() method in the agent class is called
+    #will throw error if called before setupAgent() method in the agent class is called
     def getGraph(self) -> nx.MultiDiGraph:
         return self.agent.pathGraph.graph
 
@@ -83,7 +83,7 @@ class MapleAgent:
         self.character_icon_mask_path = str(self.project_root / "assets" / 'chr' / 'chr_mask.png')
 
     def _resetAgentState(self) -> None:
-        """Clear all setup-derived state so _setupAgent can be re-run with a new CSV."""
+        """Clear all setup-derived state so setupAgent can be re-run with a new CSV."""
         self.map_rotation_order = []
         self.node_map = {}
         self.pathGraph = None
@@ -91,7 +91,7 @@ class MapleAgent:
     def setCSV(self, csv_path) -> None:
         """
         Replace the CSV the agent loads from. Caller is responsible for
-        calling _setupAgent() afterward to rebuild the graph.
+        calling setupAgent() afterward to rebuild the graph.
 
         csv_path may be a str or a pathlib.Path. Stored as a Path so
         CSVParser._validateCSV's .exists() check works.
@@ -103,7 +103,7 @@ class MapleAgent:
         Initialize agent components in dependency order.
         Order matters: PathGraph → CSV data → Graph edges.
 
-        Idempotent: calling _setupAgent() again (e.g. on map swap) clears
+        Idempotent: calling setupAgent() again (e.g. on map swap) clears
         prior state first.
         """
         self._resetAgentState()
@@ -128,7 +128,7 @@ class MapleAgent:
         return Success(None)
 
     # def start(self):
-    #     setup_agent_res = self._setupAgent()
+    #     setup_agent_res = self.setupAgent()
     #     if not is_successful(setup_agent_res):
     #         print(setup_agent_res)
     #         print("terminating setup agent process.")
@@ -170,10 +170,6 @@ class MapleAgent:
     #                         elif char_position[0] > target_node.minimap_position[0]:
     #                             self.characterClass.tp_left(direction = "left")
     #                         continue
-
-
-
-
 
     def getCharacterCoords(self) -> (int, int):
         character_icon = cv2.imread(self.character_icon_path, cv2.IMREAD_GRAYSCALE)

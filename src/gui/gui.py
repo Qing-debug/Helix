@@ -271,7 +271,7 @@ class MapleGUI:
                 self.map_editor = None
         self.map_editor.window.protocol("WM_DELETE_WINDOW", _on_editor_close)
 
-    #Without mocking the environment, we don't get to take advantage of _setupAgent telling us it failed. We're only using this for testing purposes
+    #Without mocking the environment, we don't get to take advantage of setupAgent telling us it failed. We're only using this for testing purposes
     def mockSetupAgentEnvironment(self):
         setup_agent_res = self.controller.agent.setupAgent()
         if is_successful(setup_agent_res):

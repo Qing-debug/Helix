@@ -233,6 +233,7 @@ class PathGraph:
         This method searches through all nodes in the node map to find the closest node that:
         1. Is positioned to the left of the current node (has a smaller x-coordinate)
         2. Is approximately at the same vertical level (y-coordinate within edge_y_alignment_allowance)
+        3. Is within max_horizontal_traversal_dist on the x-axis (character-class horizontal reach gate)
 
         Args:
             curr_node (Node): The reference node to search from
@@ -278,6 +279,7 @@ class PathGraph:
         This method searches through all nodes in the node map to find the closest node that:
         1. Is positioned to the right of the current node (has a larger x-coordinate)
         2. Is approximately at the same vertical level (y-coordinate within edge_y_alignment_allowance)
+        3. Is within max_horizontal_traversal_dist on the x-axis (character-class horizontal reach gate)
 
         Args:
             curr_node (Node): The reference node to search from

@@ -7,6 +7,7 @@ from returns.pipeline import is_successful
 import networkx as nx
 from src.controller.path_graph import PathGraph
 from src.controller.node import Node, CharacterNode
+from src.classes.classes import CharacterClass
 from itertools import cycle
 import math
 from collections import namedtuple
@@ -42,7 +43,7 @@ class Controller:
     def deleteNode(self, node: Node) -> None:
         self.agent.deleteNode(node)
 
-    def setCharacterClass(self, character_class) -> None:
+    def setCharacterClass(self, character_class: CharacterClass | None) -> None:
         self.agent.setCharacterClass(character_class)
 
     def loadMap(self, csv_path) -> Result[None, str]:
@@ -91,7 +92,7 @@ class MapleAgent:
         self.node_map = {}
         self.pathGraph = None
 
-    def setCharacterClass(self, character_class) -> None:
+    def setCharacterClass(self, character_class: CharacterClass | None) -> None:
         """Replace the agent's character class. Caller is responsible for
         re-running setupAgent() afterward if a graph already exists — this
         setter alone does NOT rebuild the graph (mid-session swap doesn't
@@ -148,6 +149,12 @@ class MapleAgent:
     #     print(f"agent state setup successfully. Beginning pathfinding...")
     #     self.thread.start()
     #
+    # NOTE: when uncommenting, the references below need a rename:
+    #   tp_max_traversal_dist (tuple) → max_horizontal_traversal_dist (int)
+    #   the .teleport() / .tp_left() method calls are also stale; the
+    #   current CharacterClass ABC exposes movement_type as a string,
+    #   not bound methods. Re-wire to whatever movement API exists at
+    #   that point.
     # def executePathFinding(self):
     #     goal_node_reached = False
     #     map_rotation_order_iter = cycle(self.map_rotation_order)

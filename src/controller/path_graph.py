@@ -20,11 +20,12 @@ AxisAngleThreshold = namedtuple("AxisAngleThreshold", ["min_angle", "max_angle"]
 VectorInfo = namedtuple("VectorInfo", ["dom_direction", "node_tuple"])
 
 class PathGraph:
-    def __init__(self, node_map, edge_y_alignment_allowance, edge_x_alignment_allowance):
+    def __init__(self, node_map, edge_y_alignment_allowance, edge_x_alignment_allowance, max_horizontal_traversal_dist):
         self.node_map = node_map #used to build the graph
         self.graph = nx.MultiDiGraph()  # multi-edged directed graph
         self.edge_y_alignment_allowance = edge_y_alignment_allowance#allow some vertical leeway when connecting nodes horizontally
         self.edge_x_alignment_allowance = edge_x_alignment_allowance #allow some horizontal leeway when connecting nodes vertically
+        self.max_horizontal_traversal_dist = max_horizontal_traversal_dist #character's max horizontal reach; horizontal edges are not created between nodes farther apart than this on the x-axis
         self.axis_angle_threshold = AxisAngleThreshold(min_angle=45, max_angle=135) #hold values used to determine predominant axis a vector points in - x or y axis.
 
     # TODO: test if this function works as expected. Test various character positions and double-check that the pathfinding makes sense.
@@ -244,7 +245,12 @@ class PathGraph:
 
         for next_node in self.node_map.values():
             next_node_x_pos, next_node_y_pos = next_node.minimap_position
-            if curr_node_x_pos > next_node_x_pos and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
+            # Distance heuristic only — does NOT detect terrain gaps. Two nodes
+            # within `max_horizontal_traversal_dist` get an edge even if the
+            # gap between them is unwalkable air (no platform data available).
+            if curr_node_x_pos > next_node_x_pos \
+                    and abs(curr_node_x_pos - next_node_x_pos) <= self.max_horizontal_traversal_dist \
+                    and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
                 if closest is None:
                     closest = next_node
                 else:
@@ -284,7 +290,10 @@ class PathGraph:
 
         for next_node in self.node_map.values():
             next_node_x_pos, next_node_y_pos = next_node.minimap_position
-            if curr_node_x_pos < next_node_x_pos and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
+            # Distance heuristic only — see comment in _findClosestLeftNode.
+            if curr_node_x_pos < next_node_x_pos \
+                    and abs(next_node_x_pos - curr_node_x_pos) <= self.max_horizontal_traversal_dist \
+                    and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
                 if closest is None:
                     closest = next_node
                 else:

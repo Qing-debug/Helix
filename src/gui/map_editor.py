@@ -646,7 +646,21 @@ class MapEditor:
         Validation is the caller's responsibility (`_okToSave` runs in `_save` /
         `_saveAs` before any file dialog).
         """
-        result = write_editor_nodes(path, self.state.nodes, self.state.rotation_order)
+        # Pass current native minimap dims so read_editor_nodes can compare on load.
+        # canvas width/height are stored at RENDER_SCALE; metadata must reflect native
+        # pixel space because EditorNode.pos is in native coords.
+        minimap_size = None
+        if self.minimap_canvas_width is not None and self.minimap_canvas_height is not None:
+            minimap_size = (
+                self.minimap_canvas_width // RENDER_SCALE,
+                self.minimap_canvas_height // RENDER_SCALE,
+            )
+        result = write_editor_nodes(
+            path,
+            self.state.nodes,
+            self.state.rotation_order,
+            minimap_size=minimap_size,
+        )
         if not is_successful(result):
             messagebox.showerror(
                 "Save failed",
@@ -719,14 +733,36 @@ class MapEditor:
                 "The file is not a valid Helix map CSV. It may be:\n"
                 "  • Not a Helix map file\n"
                 "  • Corrupted, or edited externally with invalid values\n"
-                "  • Missing required columns\n\n"
+                "  • Missing required columns\n"
+                "  • Have a malformed `# minimap_size=W,H` metadata line\n\n"
                 "Your current editor state has not been changed.\n\n"
                 f"Details: {reason}",
                 parent=self.window,
             )
             return
 
-        nodes_list, rotation_order = result.unwrap()
+        nodes_list, rotation_order, metadata = result.unwrap()
+
+        # Metadata-based dimension gate (Task 19). When `minimap_size` metadata is
+        # present, it's authoritative - mismatch aborts the load even if all nodes
+        # happen to fit current bounds. Legacy CSVs (no metadata) skip this block
+        # and fall through to the per-node bounds check below.
+        if self.minimap_canvas_width is not None and self.minimap_canvas_height is not None:
+            native_w = self.minimap_canvas_width // RENDER_SCALE
+            native_h = self.minimap_canvas_height // RENDER_SCALE
+            saved_dims = metadata.get('minimap_size')
+            if saved_dims is not None and saved_dims != (native_w, native_h):
+                messagebox.showerror(
+                    "Could not load map",
+                    f'Could not load "{Path(path).name}".\n\n'
+                    f"Minimap dimension saved as {saved_dims[0]}x{saved_dims[1]}; "
+                    f"current minimap is {native_w}x{native_h}.\n\n"
+                    "Fix: ensure your current minimap dimensions match the minimap "
+                    "dimensions in use when this CSV was created.\n\n"
+                    "Your current editor state has not been changed.",
+                    parent=self.window,
+                )
+                return
 
         # Pre-mutation bounds check. CSV stores native coords; if any node falls outside
         # the current minimap's native dimensions the file likely came from a different

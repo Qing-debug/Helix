@@ -1,10 +1,13 @@
 import tkinter as tk
+import tkinter.font as tkfont
+import tkinter.filedialog as filedialog
 from PIL import Image, ImageTk
 import networkx as nx
 import matplotlib.pyplot as plt
 import time
 from returns.pipeline import is_successful
 from src.controller.node import  CharacterNode
+from src.gui.map_editor import MapEditor
 
 
 class MapleGUI:
@@ -14,69 +17,172 @@ class MapleGUI:
         self.minimap_canvas = None
         self.minimap_canvas_bg_img_id = None #new
         self.gui = tk.Tk()
-        self.gui_console = tk.Text(self.gui)
+        self.gui_console = None #created in _setupGUI so it can be parented to the scrollable inner frame
+        self.scrollable_frame = None #inner frame inside the scrolling canvas; parent for all content widgets
         self.node_count = 0
         self.controller = controller
         self.sharedInfo = sharedInfo
+        self.map_editor = None  # MapEditor instance when open, None otherwise
+        self.zoom_factor = 1.0
+        self.min_zoom = 0.5
+        self.max_zoom = 3.0
+        self.zoom_step = 0.1
+        self._base_font_sizes = {}
 
     def start(self):
         self._setupGUI()
         self._updateCanvas()
         self.gui.mainloop()
 
+    def _setupScrollableContainer(self):
+        """Build the scrollable wrapper. Returns the inner Frame that should parent all content widgets."""
+        container = tk.Frame(self.gui)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        scroll_canvas = tk.Canvas(container, bg='lightblue', highlightthickness=0)
+        vbar = tk.Scrollbar(container, orient=tk.VERTICAL, command=scroll_canvas.yview)
+        scroll_canvas.configure(yscrollcommand=vbar.set)
+
+        vbar.pack(side=tk.RIGHT, fill=tk.Y)
+        scroll_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        inner = tk.Frame(scroll_canvas, bg='lightblue')
+        inner_window_id = scroll_canvas.create_window((0, 0), window=inner, anchor='nw')
+
+        # Keep scrollregion in sync as the inner frame's size changes
+        inner.bind('<Configure>', lambda e: scroll_canvas.configure(scrollregion=scroll_canvas.bbox('all')))
+        # Make the inner frame's width track the canvas width so children can fill horizontally
+        scroll_canvas.bind('<Configure>', lambda e: scroll_canvas.itemconfig(inner_window_id, width=e.width))
+
+        # Mouse wheel scroll (Windows: event.delta is ±120 per notch)
+        def _on_mousewheel(event):
+            if isinstance(event.widget, (tk.Text, tk.Listbox)):
+                return  # let the inner scrollable widget handle its own scroll
+            scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), 'units')
+        scroll_canvas.bind_all('<MouseWheel>', _on_mousewheel)
+
+        return inner
+
+    def _captureBaseFontSizes(self):
+        # Record each named font's original size so zoom is relative to defaults, not previous zoom state.
+        for name in ('TkDefaultFont', 'TkTextFont', 'TkFixedFont', 'TkMenuFont',
+                     'TkHeadingFont', 'TkCaptionFont', 'TkSmallCaptionFont',
+                     'TkIconFont', 'TkTooltipFont'):
+            try:
+                self._base_font_sizes[name] = tkfont.nametofont(name).cget('size')
+            except tk.TclError:
+                pass
+
+    def _applyZoom(self):
+        for name, base_size in self._base_font_sizes.items():
+            # Negative sizes are pixels, positive are points — preserve sign.
+            scaled = abs(base_size) * self.zoom_factor
+            new_size = max(1, int(round(scaled)))
+            if base_size < 0:
+                new_size = -new_size
+            tkfont.nametofont(name).configure(size=new_size)
+
+    def _zoomIn(self, event=None):
+        self.zoom_factor = min(self.max_zoom, self.zoom_factor + self.zoom_step)
+        self._applyZoom()
+        return 'break'
+
+    def _zoomOut(self, event=None):
+        self.zoom_factor = max(self.min_zoom, self.zoom_factor - self.zoom_step)
+        self._applyZoom()
+        return 'break'
+
+    def _zoomReset(self, event=None):
+        self.zoom_factor = 1.0
+        self._applyZoom()
+        return 'break'
+
+    def _onCtrlMouseWheel(self, event):
+        if event.delta > 0:
+            self._zoomIn()
+        else:
+            self._zoomOut()
+        return 'break'
+
+    def _bindZoomShortcuts(self):
+        # Ctrl + / - / 0 for keyboard zoom; Ctrl + mouse wheel for smooth zoom.
+        # bind (not bind_all) on the Tk root scopes these to the main GUI's widget tree;
+        # other Toplevels (e.g. MapEditor) have their own bindtag chain and aren't affected.
+        self.gui.bind('<Control-plus>', self._zoomIn)
+        self.gui.bind('<Control-equal>', self._zoomIn)
+        self.gui.bind('<Control-KP_Add>', self._zoomIn)
+        self.gui.bind('<Control-minus>', self._zoomOut)
+        self.gui.bind('<Control-KP_Subtract>', self._zoomOut)
+        self.gui.bind('<Control-0>', self._zoomReset)
+        self.gui.bind('<Control-MouseWheel>', self._onCtrlMouseWheel)
+
     def _setupGUI(self):
         self.gui.configure(bg='lightblue')
         self.gui.geometry("1000x1000")
+
+        self._captureBaseFontSizes()
+        self._bindZoomShortcuts()
+
+        self.scrollable_frame = self._setupScrollableContainer()
+        parent = self.scrollable_frame
+
+        self.gui_console = tk.Text(parent)
         self.gui_console.pack()
 
-        draw_blue_node_button = tk.Button(self.gui, text="draw blue node on character", command=self.drawBlueNodeOnCharacter)
+        draw_blue_node_button = tk.Button(parent, text="draw blue node on character", command=self.drawBlueNodeOnCharacter)
         draw_blue_node_button.pack(side=tk.TOP, pady=5)
 
-        draw_orange_node_button = tk.Button(self.gui, text="draw orange node on character", command=self.drawOrangeNodeOnCharacter)
+        draw_orange_node_button = tk.Button(parent, text="draw orange node on character", command=self.drawOrangeNodeOnCharacter)
         draw_orange_node_button.pack(side=tk.TOP, pady=5)
 
-        clear_gui_console_button = tk.Button(self.gui, text = "clear console", command = self.clearGUIConsole)
+        clear_gui_console_button = tk.Button(parent, text = "clear console", command = self.clearGUIConsole)
         clear_gui_console_button.pack(side=tk.TOP, pady=5)
 
-        clear_gui_minimap_button = tk.Button(self.gui, text = "clear drawn nodes on minimap", command = self._clearDrawnNodesOnGUIMinimap)
+        clear_gui_minimap_button = tk.Button(parent, text = "clear drawn nodes on minimap", command = self._clearDrawnNodesOnGUIMinimap)
         clear_gui_minimap_button.pack(side=tk.TOP, pady=5)
 
+        load_map_button = tk.Button(parent, text="Load Map (Browse...)", command=self._loadMapBrowse)
+        load_map_button.pack(side=tk.TOP, pady=5)
+
+        open_editor_button = tk.Button(parent, text="Open Map Editor", command=self._openMapEditor)
+        open_editor_button.pack(side=tk.TOP, pady=5)
+
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
-        # parse_CSV_button = tk.Button(self.gui, text = "(delete or move to a separate tab on the GUI) parse CSV", command = self.controller.parseCSV)
+        # parse_CSV_button = tk.Button(parent, text = "(delete or move to a separate tab on the GUI) parse CSV", command = self.controller.parseCSV)
         # parse_CSV_button.pack(side=tk.TOP, pady=5)
 
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
-        # build_graph_button = tk.Button(self.gui, text = "(delete or move to a separate tab on the GUI) create edges", command = self.controller.buildGraph)
+        # build_graph_button = tk.Button(parent, text = "(delete or move to a separate tab on the GUI) create edges", command = self.controller.buildGraph)
         # build_graph_button.pack(side=tk.TOP, pady=5)
 
-        setup_bot_button = tk.Button(self.gui, text = "(delete or move to a separate tab on the GUI) setup bot", command = self.mockSetupBotEnvironment)
-        setup_bot_button.pack(side = tk.TOP, pady=5)
+        setup_agent_button = tk.Button(parent, text = "(delete or move to a separate tab on the GUI) setup agent", command = self.mockSetupAgentEnvironment)
+        setup_agent_button.pack(side = tk.TOP, pady=5)
 
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
-        display_graph_button = tk.Button(self.gui, text="(delete or move to a separate tab on the GUI) used to visualise the graph", command=self._drawGraph)
+        display_graph_button = tk.Button(parent, text="(delete or move to a separate tab on the GUI) used to visualise the graph", command=self._drawGraph)
         display_graph_button.pack(side=tk.TOP, pady=5)
 
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
-        connect_character_node_button = tk.Button(self.gui, text="(delete or move to a separate tab on the GUI) used to add character node to graph (node is d in just for testing purposes only)", command=self.controller.connectCharacterNode)
+        connect_character_node_button = tk.Button(parent, text="(delete or move to a separate tab on the GUI) used to add character node to graph (node is d in just for testing purposes only)", command=self.controller.connectCharacterNode)
         connect_character_node_button.pack(side=tk.TOP, pady=5)
         #
         #delete once we have no need for direct testing or move to a separate part of GUI for testing purposes only
-        delete_node_button = tk.Button(self.gui, text="(delete or move to a separate tab on the GUI) used to delete character node from graph (node is hardcoded in just for testing purposes only)", command=self.controller.deleteNode)
+        delete_node_button = tk.Button(parent, text="(delete or move to a separate tab on the GUI) used to delete character node from graph (node is hardcoded in just for testing purposes only)", command=self.controller.deleteNode)
         delete_node_button.pack(side=tk.TOP, pady=5)
 
         # delete once we have no need for direct testing
-        get_path = tk.Button(self.gui, text="(delete after done testing) used get the path to goal node", command=self.showPathToGoalNode)
+        get_path = tk.Button(parent, text="(delete after done testing) used get the path to goal node", command=self.showPathToGoalNode)
         get_path.pack(side=tk.TOP, pady=5)
 
-        #delete once we have no need for direct testing of the setup_bot function
-        # setup_bot = tk.Button(self.gui, text="(delete after done testing) setup bot", command=self.controller.setupBot)
-        # setup_bot.pack(side=tk.TOP, pady=5)
+        #delete once we have no need for direct testing of the setup_agent function
+        # setup_agent = tk.Button(parent, text="(delete after done testing) setup agent", command=self.controller.setupAgent)
+        # setup_agent.pack(side=tk.TOP, pady=5)
 
-        #include these once we finish main logic for bot + controller
-        # tk.Button(self.gui, text="start controller", command=self.controller.start).pack(side = "right")
-        # tk.Button(self.gui, text="set main node", command=self.infiniteLoop).pack(side = "right")
-        # tk.Button(self.gui, text="set pathing node", command=self.controller.setPathingNode).pack(side = "right")
-        # tk.Button(self.gui, text="draw path and nodes", command=self.controller.drawPathAndNodes).pack(side = "right")
+        #include these once we finish main logic for agent + controller
+        # tk.Button(parent, text="start controller", command=self.controller.start).pack(side = "right")
+        # tk.Button(parent, text="set main node", command=self.infiniteLoop).pack(side = "right")
+        # tk.Button(parent, text="set pathing node", command=self.controller.setPathingNode).pack(side = "right")
+        # tk.Button(parent, text="draw path and nodes", command=self.controller.drawPathAndNodes).pack(side = "right")
 
         #uncomment this when you actually need info from maplestory - uncomment the other block of code in main.py that has the exact same comment
         time.sleep(5) #give minimap capture thread some time to start and possibly capture a minimap frame
@@ -86,7 +192,7 @@ class MapleGUI:
                 if self.sharedInfo.minimap_frame is not None:
                     is_canvas_setup = True
                     self.minimap_canvas_height, self.minimap_canvas_width, _ = self.sharedInfo.minimap_frame.shape
-                    self.minimap_canvas = tk.Canvas(self.gui, width= self.minimap_canvas_width,
+                    self.minimap_canvas = tk.Canvas(parent, width= self.minimap_canvas_width,
                                                     height= self.minimap_canvas_height,
                                                     background='pink',
                                                     highlightthickness=0,
@@ -118,11 +224,11 @@ class MapleGUI:
         print("-----------------------------------------------")
         character_coords = self.controller.getCharacterCoords()
         char_node = CharacterNode(character_coords)
-        goal_node = self.controller.bot.map_rotation_order[0]
+        goal_node = self.controller.agent.map_rotation_order[0]
         self._drawGraph()
         self.controller.connectCharacterNode(char_node)
         self._drawGraph()
-        path = self.controller.bot.pathGraph.getPathToGoalNode(char=char_node, goal=goal_node)
+        path = self.controller.agent.pathGraph.getPathToGoalNode(char=char_node, goal=goal_node)
         if not path:
             print(f"no path found to goal node {goal_node}")
         else:
@@ -134,13 +240,44 @@ class MapleGUI:
     def clearGUIConsole(self):
         self.gui_console.delete(1.0, tk.END)
 
-    #Without mocking the environment, we don't get to take advantage of _setupBot telling us it failed. We're only using this for testing purposes
-    def mockSetupBotEnvironment(self):
-        setup_bot_res = self.controller.bot._setupBot()
-        if is_successful(setup_bot_res):
-            print("setup bot successful")
+    def _loadMapBrowse(self):
+        """Open a file dialog, then ask the controller to swap to the picked CSV."""
+        path = filedialog.askopenfilename(
+            parent=self.gui,
+            title="Load Map CSV",
+            initialdir="maps",
+            filetypes=[("CSV files", "*.csv")],
+        )
+        if not path:
+            return  # user cancelled
+        result = self.controller.loadMap(path)
+        if is_successful(result):
+            self._printToGUIConsole(f"Loaded map: {path}")
         else:
-            print(setup_bot_res)
+            self._printToGUIConsole(f"Failed to load map {path}: {result}")
+
+    def _openMapEditor(self):
+        """Open the map editor Toplevel. If one is already open, raise it to the front."""
+        if self.map_editor is not None and self.map_editor.window.winfo_exists():
+            self.map_editor.window.lift()
+            self.map_editor.window.focus_force()
+            return
+        self.map_editor = MapEditor(self.gui, self.controller, self.sharedInfo)
+        # Close routes through MapEditor._okToClose so the unsaved-changes modal can veto.
+        # We only destroy and clear our reference when it returns True; cancel keeps the window.
+        def _on_editor_close():
+            if self.map_editor._okToClose():
+                self.map_editor.window.destroy()
+                self.map_editor = None
+        self.map_editor.window.protocol("WM_DELETE_WINDOW", _on_editor_close)
+
+    #Without mocking the environment, we don't get to take advantage of setupAgent telling us it failed. We're only using this for testing purposes
+    def mockSetupAgentEnvironment(self):
+        setup_agent_res = self.controller.agent.setupAgent()
+        if is_successful(setup_agent_res):
+            print("setup agent successful")
+        else:
+            print(setup_agent_res)
 
     def _drawNodeCount(self, x, y, text, font=("Arial", 8, "bold")):
         # Draw outline (black border around text)

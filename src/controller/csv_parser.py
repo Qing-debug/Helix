@@ -21,13 +21,16 @@ class CSVParser:
             return res_of_csv_validation
         with open(self.CSV_file) as csv_file:
             row = 2 #values only start from second row
-            csv_reader = csv.DictReader(csv_file, delimiter=',')
+            csv_reader = csv.DictReader(
+                (l for l in csv_file if not l.lstrip().startswith('#')),
+                delimiter=',',
+            )
             for dict_row in csv_reader:
 
                 #converting to in-memory literals
                 nodetype = dict_row[self.CSV_fields["nodetype"]]
                 pos_in_minimap = ast.literal_eval(dict_row[self.CSV_fields["pos_in_minimap"]])
-                can_fall = (self.CSV_fields["can_fall"] == "TRUE")
+                can_fall = (dict_row[self.CSV_fields["can_fall"]] == "TRUE")
                 fall_dist_exceeds_vertical_tp = (dict_row[self.CSV_fields["fall_dist_exceeds_vertical_tp"]] == "TRUE")
                 is_left_platform_edge = (dict_row[self.CSV_fields["is_left_platform_edge"]] == "TRUE")
                 is_right_platform_edge = (dict_row[self.CSV_fields["is_right_platform_edge"]] == "TRUE")
@@ -52,7 +55,10 @@ class CSVParser:
             return Failure("CSV file points to an invalid path, failed to load CSV file.")
 
         with open(self.CSV_file, 'r') as csv_file:
-            csv_reader = csv.DictReader(csv_file, delimiter=',')
+            csv_reader = csv.DictReader(
+                (l for l in csv_file if not l.lstrip().startswith('#')),
+                delimiter=',',
+            )
 
             if len(self.CSV_fields) != len(csv_reader.fieldnames):
                 return Failure("number of expected CSV field names do not match actual number of CSV field names")

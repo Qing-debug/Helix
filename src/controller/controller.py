@@ -43,8 +43,8 @@ class Controller:
     def deleteNode(self, node: Node) -> None:
         self.agent.deleteNode(node)
 
-    def setCharacterClass(self, character_class: CharacterClass | None) -> None:
-        self.agent.setCharacterClass(character_class)
+    def setCharacterClass(self, character_class: CharacterClass | None) -> Result[None, str]:
+        return self.agent.setCharacterClass(character_class)
 
     def loadMap(self, csv_path) -> Result[None, str]:
         """
@@ -92,12 +92,26 @@ class MapleAgent:
         self.node_map = {}
         self.pathGraph = None
 
-    def setCharacterClass(self, character_class: CharacterClass | None) -> None:
-        """Replace the agent's character class. Caller is responsible for
-        re-running setupAgent() afterward if a graph already exists — this
-        setter alone does NOT rebuild the graph (mid-session swap doesn't
-        auto-rebuild; next loadMap() / setupAgent() picks it up)."""
+    def setCharacterClass(self, character_class: CharacterClass | None) -> Result[None, str]:
+        """Replace the agent's character class.
+
+        Maintains the invariant: pathGraph is not None iff
+        (characterClass is not None AND a CSV is loaded). Clearing the
+        character tears down the graph; setting a character while a CSV
+        is loaded (re)builds the graph so the new caps are reflected
+        immediately.
+
+        Returns Failure when the auto-rebuild itself fails (e.g. parse
+        error on the in-flight CSV). Callers should surface this to the
+        user."""
         self.characterClass = character_class
+        if character_class is None:
+            if self.pathGraph is not None:
+                self._resetAgentState()
+            return Success(None)
+        if self.CSVParser.CSV_file is not None:
+            return self.setupAgent()
+        return Success(None)
 
     def setCSV(self, csv_path) -> None:
         """

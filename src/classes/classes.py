@@ -14,8 +14,7 @@ class CharacterClass(ABC):
     @abstractmethod
     def movement_type(self) -> str:
         """e.g. 'double_jump', 'teleport'. The character's primary
-        horizontal traversal ability. Single value for now — multi-ability
-        characters pick their dominant one."""
+        traversal ability. """
         ...
 
     @property
@@ -25,8 +24,7 @@ class CharacterClass(ABC):
         a single traversal action. Consumed by PathGraph to gate
         horizontal edge creation — two nodes farther apart than this on
         the x-axis will not have a horizontal edge between them, even if
-        no closer candidate exists. For characters with multiple
-        traversal abilities, use the LARGER value."""
+        no closer candidate exists."""
         ...
 
     @property

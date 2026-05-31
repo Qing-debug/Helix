@@ -15,8 +15,12 @@ def findInGameMinimapBorder(matched_templates, minimap_border_templates, corners
     return in_game_border_offsets
 
 
-#checks the confidence rating for each matched template loc and ensures order of matched template location is correct
-def isMatchedTemplateLocValid(matched_templates: dict, corners: list[str], template_min_conf_score: float = 0.95) -> bool:
+EDGE_ALIGNMENT_TOLERANCE_PX = 6  # corners may differ by their template-size deltas (a few px) plus match jitter
+
+#checks the confidence rating for each matched template loc, ensures left/right and top/bottom ordering, and that the
+#four corners actually form a coherent rectangle (opposite edges aligned) rather than just being correctly ordered
+def isMatchedTemplateLocValid(matched_templates: dict, corners: list[str], template_min_conf_score: float = 0.95,
+                              edge_alignment_tolerance_px: int = EDGE_ALIGNMENT_TOLERANCE_PX) -> bool:
     for corner in corners:
         matched_template = matched_templates[corner]
         if matched_template.conf_score < template_min_conf_score:
@@ -26,12 +30,22 @@ def isMatchedTemplateLocValid(matched_templates: dict, corners: list[str], templ
     left_top_template, right_top_template, right_bot_template, left_bot_template = (matched_templates[left_top],
                                                                                     matched_templates[right_top],
                                                                                     matched_templates[right_bot],
-                                                                                    matched_templates[left_bot])
+                                                                             matched_templates[left_bot])
     if left_top_template.x >= right_top_template.x or left_bot_template.x >= right_bot_template.x:
         print("Template matched locations are invalid: left-most x coord >= right-most x coord")
         return False
     if left_top_template.y >= left_bot_template.y or right_top_template.y >= right_bot_template.y:
-        print("Template matched locations are invalid: top-most y coord >= right-most y coord")
+        print("Template matched locations are invalid: top-most y coord >= bottom-most y coord")
+        return False
+    # rectangle consistency: ordering alone allows skewed quads (e.g. a slanted top edge). Require opposite edges to
+    # actually align within tolerance so an incoherent set of high-confidence matches is rejected, not just used.
+    if (abs(left_top_template.y - right_top_template.y) > edge_alignment_tolerance_px or
+            abs(left_bot_template.y - right_bot_template.y) > edge_alignment_tolerance_px):
+        print("Template matched locations are invalid: top/bottom corners are not horizontally aligned")
+        return False
+    if (abs(left_top_template.x - left_bot_template.x) > edge_alignment_tolerance_px or
+            abs(right_top_template.x - right_bot_template.x) > edge_alignment_tolerance_px):
+        print("Template matched locations are invalid: left/right corners are not vertically aligned")
         return False
     return True
 
@@ -45,17 +59,15 @@ def cameraGrab(camera ,minimap_detection_region_of_interest : (int, int, int, in
             frame = camera.grab() #captures entire screen
     return frame
 
-#checks if the proposed region to grab a frame is valid according to bettercamera's.grab() function, assumes screen_size is for main monitor as our comparisons are based off the coordinate space of the main monitor
-def isProposedMinimapRegionValid(minimap_region: (int, int, int, int), screen_size: (int,int)) -> bool:
+#checks if the proposed region to grab a frame is valid according to bettercamera's.grab() function. Screen dimensions are passed as separate width/height ints to prevent (H,W) vs (W,H) tuple-order mix-ups.
+def isProposedMinimapRegionValid(minimap_region: (int, int, int, int), screen_width: int, screen_height: int) -> bool:
     x1, y1, x2, y2 = minimap_region[0], minimap_region[1], minimap_region[2], minimap_region[3]
-    if x1 < 0 or y1 < 0 or x2 > screen_size[0] or y2 > screen_size[1]:
+    if x1 < 0 or y1 < 0 or x2 > screen_width or y2 > screen_height:
         return False
     if x1 >= x2 or y1 >= y2:
         return False
 
     return True
-
-
 
 def isMinimapBlack(minimap_frame):
     hsv_minimap_frame = cv2.cvtColor(minimap_frame, cv2.COLOR_BGR2HSV)
@@ -71,4 +83,4 @@ def isMinimapBlack(minimap_frame):
     return False
 
 def percentOfBlackPixInMinimap(total_black_pixel, total_elem):
-    return round(total_black_pixel / total_elem) * 100
+    return round(total_black_pixel / total_elem * 100)

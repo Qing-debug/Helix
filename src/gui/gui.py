@@ -6,7 +6,10 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import time
 from returns.pipeline import is_successful
+import tkinter.ttk as ttk
 from src.controller.node import  CharacterNode
+from src.controller.controller import BuildOutcome
+from src.classes.classes import CharacterClass, Kanna
 from src.gui.map_editor import MapEditor
 
 
@@ -141,6 +144,23 @@ class MapleGUI:
         clear_gui_minimap_button = tk.Button(parent, text = "clear drawn nodes on minimap", command = self._clearDrawnNodesOnGUIMinimap)
         clear_gui_minimap_button.pack(side=tk.TOP, pady=5)
 
+        # --- Character picker (above Load Map) ---
+        character_picker_label = tk.Label(parent, text="Character:")
+        character_picker_label.pack(side=tk.TOP, pady=(10, 0))
+
+        self._character_class_options = {cls.__name__: cls for cls in CharacterClass.__subclasses__()}
+        # Empty-string sentinel is the dropdown's first entry — represents "no selection."
+        self._character_picker_var = tk.StringVar(value="")
+        character_picker = ttk.Combobox(
+            parent,
+            textvariable=self._character_picker_var,
+            values=list(self._character_class_options.keys()),
+            state="readonly",
+            width=20,
+        )
+        character_picker.pack(side=tk.TOP, pady=(0, 10))
+        character_picker.bind("<<ComboboxSelected>>", self._onCharacterPickerChange)
+
         load_map_button = tk.Button(parent, text="Load Map (Browse...)", command=self._loadMapBrowse)
         load_map_button.pack(side=tk.TOP, pady=5)
 
@@ -252,9 +272,44 @@ class MapleGUI:
             return  # user cancelled
         result = self.controller.loadMap(path)
         if is_successful(result):
-            self._printToGUIConsole(f"Loaded map: {path}")
+            outcome = result.unwrap()
+            if outcome is BuildOutcome.BUILT:
+                self._printToGUIConsole(f"Loaded map: {path}; graph built.")
+            elif outcome is BuildOutcome.PENDING_CHARACTER:
+                self._printToGUIConsole(
+                    f"Map CSV loaded ({path}). No character selected yet — "
+                    "pick one from the Character dropdown to build the graph."
+                )
         else:
-            self._printToGUIConsole(f"Failed to load map {path}: {result}")
+            self._printToGUIConsole(f"Failed to load map {path}: {result.failure()}")
+
+    def _onCharacterPickerChange(self, event=None):
+        """Handle character-picker selection. Sets the chosen class on the
+        agent, which builds the graph if a map is already loaded (otherwise
+        returns PENDING_CSV — waiting for a map). Branches on the BuildOutcome
+        to message the user, and notifies the editor (if open) so it can
+        re-evaluate the Show edges checkbox state."""
+        selected_name = self._character_picker_var.get()
+        # Idempotent guard: same-value re-selection (e.g. picking "Kanna"
+        # while Kanna is already active) would otherwise trigger a
+        # redundant rebuild.
+        current = self.controller.agent.characterClass
+        current_name = type(current).__name__ if current is not None else ""
+        if current_name == selected_name:
+            return
+        char_class = self._character_class_options[selected_name]
+        result = self.controller.setCharacterClass(char_class())
+        label = f"set to {selected_name}"
+        if is_successful(result):
+            outcome = result.unwrap()
+            if outcome is BuildOutcome.BUILT:
+                self._printToGUIConsole(f"Character class {label}; graph built.")
+            elif outcome is BuildOutcome.PENDING_CSV:
+                self._printToGUIConsole(f"Character class {label}. No map loaded yet — use Load Map to load a CSV.")
+        else:
+            self._printToGUIConsole(f"Character class {label}, but graph build failed: {result.failure()}")
+        if self.map_editor is not None and self.map_editor.window.winfo_exists():
+            self.map_editor.onCharacterClassChanged()
 
     def _openMapEditor(self):
         """Open the map editor Toplevel. If one is already open, raise it to the front."""

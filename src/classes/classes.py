@@ -30,11 +30,11 @@ class CharacterClass(ABC):
     @property
     @abstractmethod
     def max_vertical_traversal_dist(self) -> int:
-        """Maximum vertical pixel distance covered in a single traversal
-        action. Not consumed by PathGraph today — surfaced on the ABC
-        because the codebase already encodes vertical-traversal-range
-        conceptually (see node.py `fall_dist_exceeds_vertical_tp`) and a
-        future edge-gating pass will likely need it."""
+        """Maximum vertical pixel distance (on the minimap) covered in a
+        single traversal action. Consumed by PathGraph to gate vertical
+        edge creation (_findClosestNodeAbove / _findClosestNodeBelow) —
+        two nodes farther apart than this on the y-axis will not have a
+        vertical edge between them, even if no closer candidate exists."""
         ...
 
 

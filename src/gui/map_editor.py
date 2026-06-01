@@ -18,7 +18,6 @@ from typing import Dict, List, Optional
 from PIL import Image, ImageTk
 from src.controller.map_csv import EditorNode, read_editor_nodes, write_editor_nodes
 from src.controller.node import Node
-from src.controller.path_graph import PathGraph
 from returns.pipeline import is_successful
 
 
@@ -250,13 +249,15 @@ class MapEditor:
         self._rotation_frame.pack(fill=tk.X)
 
         self._show_edges_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(
+        self._show_edges_cb = tk.Checkbutton(
             self._panel_frame,
             text="Show edges",
             variable=self._show_edges_var,
             bg='lightblue', font=self._font_body,
             command=self._renderPreview,
-        ).grid(row=2, column=0, columnspan=3, sticky='w', padx=PANEL_PADX, pady=(12, 0))
+        )
+        self._show_edges_cb.grid(row=2, column=0, columnspan=3, sticky='w', padx=PANEL_PADX, pady=(12, 0))
+        self._evaluateShowEdgesState()  # gate the checkbox on whether a character class is selected
 
         self._show_bands_var = tk.BooleanVar(value=False)
         tk.Checkbutton(
@@ -626,15 +627,21 @@ class MapEditor:
 
         # Same accepted tradeoff as the edge-preview path (Task 12): bumps Node.node_id_counter.
         path_graph, id_to_node = self._buildPreviewGraph()
-        connected_nodes = {n for edge in path_graph.graph.edges() for n in edge}
-        orphan_nodes = [
-            self.state.nodes[lid] for lid, n in id_to_node.items()
-            if n not in connected_nodes
-        ]
-        if orphan_nodes:
-            issues.append("Orphan nodes (no edges):")
-            for n in orphan_nodes:
-                issues.append(f"  • #{n.local_id} at {n.pos}")
+        if path_graph is None:
+            # No character selected — orphan detection requires a built graph.
+            # Skip it; the other validations above (rotation_order, duplicates,
+            # off-bounds) still apply, so save-with-no-character stays usable.
+            pass
+        else:
+            connected_nodes = {n for edge in path_graph.graph.edges() for n in edge}
+            orphan_nodes = [
+                self.state.nodes[lid] for lid, n in id_to_node.items()
+                if n not in connected_nodes
+            ]
+            if orphan_nodes:
+                issues.append("Orphan nodes (no edges):")
+                for n in orphan_nodes:
+                    issues.append(f"  • #{n.local_id} at {n.pos}")
 
         if issues:
             return ("warn", "\n".join(issues) + "\n\nSave anyway?")
@@ -824,6 +831,13 @@ class MapEditor:
                 return False
         return True
 
+    def onCharacterClassChanged(self) -> None:
+        """Called by MapleGUI after the character picker changes (gui.py). Re-
+        evaluates editor state that depends on the selected character — today,
+        just the Show edges checkbox, which needs a character to build a preview
+        graph. This is the hook the picker handler already invokes."""
+        self._evaluateShowEdgesState()
+
     def _buildPreviewGraph(self):
         """
         Build a throwaway PathGraph that matches what the runtime would build after
@@ -858,16 +872,43 @@ class MapEditor:
             )
             node_map[n.uuid] = n
             id_to_node[editor_node.local_id] = n
-        path_graph = PathGraph(
-            node_map=node_map,
-            edge_y_alignment_allowance=self.controller.agent.edge_y_tolerance_level,
-            edge_x_alignment_allowance=self.controller.agent.edge_x_tolerance_level,
-        )
-        build_res = path_graph.buildGraph()
-        if not is_successful(build_res):
-            # Empty editor returns Failure("Node_dict is empty.") — just return no edges.
-            return path_graph, id_to_node
+        res = self.controller.agent.buildPathGraphFor(node_map)
+        if not is_successful(res):
+            # Reached when no character is selected (buildPathGraphFor returns
+            # Failure — it needs the character's traversal caps). All three
+            # callers guard on this None return: _validateForSave,
+            # _renderOrphanHighlights, and _renderPreview.
+            return None, id_to_node
+        path_graph = res.unwrap()
+        # Any buildGraph() Failure is tolerated here — the empty editor returns
+        # Failure("Node_dict is empty."), and the node_map/graph-mismatch guard
+        # can't trip (the graph is freshly built from this exact node_map).
+        # Either way path_graph.graph stays a valid graph and callers tolerate
+        # no edges, so we read it without checking the result.
+        path_graph.buildGraph()
         return path_graph, id_to_node
+
+    def _evaluateShowEdgesState(self) -> None:
+        """Enable "Show edges" only when a character class is selected — the
+        preview graph needs the character's traversal caps to build, so with no
+        character `buildPathGraphFor` returns Failure and there is nothing to
+        show. The disabled label carries the reason in-band (Tkinter has no
+        native tooltip; a custom one is overkill for a single hint).
+
+        Single-character-per-session: the class is chosen once and never
+        cleared, so the only transition is the initial no-character state ->
+        enabled on the first pick. There is no enabled->disabled path, hence no
+        force-off-the-checkbox cleanup."""
+        if self.controller.agent.characterClass is None:
+            self._show_edges_cb.config(
+                state=tk.DISABLED,
+                text="Show edges (pick a character first)",
+            )
+        else:
+            self._show_edges_cb.config(
+                state=tk.NORMAL,
+                text="Show edges",
+            )
 
     def _renderPreview(self):
         """Render preview overlays (edges + tolerance bands). Called whenever toggles or state change.
@@ -880,7 +921,11 @@ class MapEditor:
         self.minimap_canvas.delete(CANVAS_TAG_BAND)
         if self._show_edges_var.get():
             path_graph, id_to_node = self._buildPreviewGraph()
-            if id_to_node:
+            # path_graph is None when no character is selected (Task 7 disables
+            # the checkbox to keep the toggle from reaching here, but other
+            # redraw triggers can still call _renderPreview — guard regardless).
+            # Scoped skip rather than early return so band rendering below runs.
+            if path_graph is not None and id_to_node:
                 # Classify edges horizontal vs vertical by Δy vs Δx; minimap_position is native
                 # coords, multiply by RENDER_SCALE for canvas pixels (same pattern as _renderNodes).
                 # Dedupe by unordered pair so one line renders per pair; arrowheads encode which
@@ -947,6 +992,11 @@ class MapEditor:
         if not self._show_orphans_var.get():
             return
         path_graph, id_to_node = self._buildPreviewGraph()
+        if path_graph is None:
+            # No character selected — no graph to compute orphans from. The
+            # Highlight-orphans toggle is independent of Show-edges, so this is
+            # the only guard protecting this path against the None return.
+            return
         if not id_to_node:
             return
         connected_nodes = {n for edge in path_graph.graph.edges() for n in edge}

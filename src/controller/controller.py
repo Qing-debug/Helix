@@ -7,9 +7,25 @@ from returns.pipeline import is_successful
 import networkx as nx
 from src.controller.path_graph import PathGraph
 from src.controller.node import Node, CharacterNode
+from src.classes.classes import CharacterClass
 from itertools import cycle
 import math
 from collections import namedtuple
+from enum import Enum
+
+
+class BuildOutcome(Enum):
+    """Payload of a Success result from setCharacterClass / loadMap.
+
+    The graph requires BOTH a character class AND a CSV. Either setter
+    can succeed with the graph built (BUILT) or succeed with the
+    counterpart still missing (PENDING_*). A Failure result means a
+    genuine error — parse, build, or bad path — not a missing counterpart."""
+    BUILT = "built"
+    PENDING_CHARACTER = "pending_character"
+    PENDING_CSV = "pending_csv"
+
+
 
 #only exposes methods of the controller that the GUI should be able to use - adding nodes, removing nodes, stopping controller, starting controller, etc
 class Controller:
@@ -42,27 +58,18 @@ class Controller:
     def deleteNode(self, node: Node) -> None:
         self.agent.deleteNode(node)
 
-    def loadMap(self, csv_path) -> Result[None, str]:
-        """
-        Swap the agent's active map to the CSV at csv_path and rebuild the graph.
+    def setCharacterClass(self, character_class: CharacterClass) -> Result[BuildOutcome, str]:
+        return self.agent.setCharacterClass(character_class)
 
-        Returns Success(None) on success, Failure(<reason>) on parser/build error.
-        On failure the agent's state is reset (no partial map left over).
-        """
-        self.agent.setCSV(csv_path)
-        return self.agent.setupAgent()
+    def loadMap(self, csv_path) -> Result[BuildOutcome, str]:
+        """Forwards to MapleAgent.loadMap — see there for behavior."""
+        return self.agent.loadMap(csv_path)
 
-    # delete once you don't need a direct way to test this
-    def parseCSV(self) -> None:
-        res_parse_CSV = self.agent._parseCSV()
-        if not is_successful(res_parse_CSV):
-            print(res_parse_CSV)
-
-    # delete once you don't need a direct way to test this
-    def buildGraph(self) -> None:
-        res_build_graph = self.agent._buildGraph()
-        if not is_successful(res_build_graph):
-            print(res_build_graph)
+    # # delete once you don't need a direct way to test this
+    # def buildGraph(self) -> None:
+    #     res_build_graph = self.agent._buildGraph()
+    #     if not is_successful(res_build_graph):
+    #         print(res_build_graph)
 
 
 class MapleAgent:
@@ -82,11 +89,52 @@ class MapleAgent:
         self.character_icon_path = str(self.project_root / "assets" / 'chr' / 'chr.png')
         self.character_icon_mask_path = str(self.project_root / "assets" / 'chr' / 'chr_mask.png')
 
-    def _resetAgentState(self) -> None:
-        """Clear all setup-derived state so setupAgent can be re-run with a new CSV."""
+    def _clearMapState(self) -> None:
+        """Discard the current map's parsed data (node_map, map_rotation_order)
+        and the graph built from it, so a new map can be loaded. Leaves the
+        character class and CSV path untouched."""
         self.map_rotation_order = []
         self.node_map = {}
         self.pathGraph = None
+
+
+    def setCharacterClass(self, character_class: CharacterClass) -> Result[BuildOutcome, str]:
+        self.characterClass = character_class
+
+        # No valid map loaded yet — loadMap drops CSV_file on parse failure,
+        # so CSV_file is the single source of truth for "a map is loaded."
+        if not self.CSVParser.CSV_file:
+            return Success(BuildOutcome.PENDING_CSV)
+
+        res_agent_setup = self.setupAgent() #assumes map loaded
+        if not is_successful(res_agent_setup):
+            self.pathGraph = None
+            return res_agent_setup
+        return Success(BuildOutcome.BUILT)
+
+    #Note - needs to handle the ability to reconstruct graph upon loading of a new map given the other existing conditions for creating a graph are present (character class is selected)
+    def loadMap(self, csv_path) -> Result[BuildOutcome, str]:
+        self._clearMapState()
+        self.setCSV(csv_path)
+
+        res_parse = self.CSVParser.parseCSV(self.map_rotation_order, self.node_map)  # validate-then-parse is atomic (validation gates the mutation, so no half-parsed state); fills the freshly-cleared containers in-place
+        if not is_successful(res_parse):
+            self.setCSV(None)
+            return res_parse
+
+        # Parse succeeded -> node_map is populated and survives from here.
+        if self.characterClass is None:
+            return Success(BuildOutcome.PENDING_CHARACTER)  # genuinely waiting for a character, not an error
+
+        # Character present: any setupAgent failure is a real build error
+        # (the no-character case is already handled above), so surface it as
+        # Failure with its reason. Keep the parsed data; only drop the graph.
+        res_agent_setup = self.setupAgent()
+        if not is_successful(res_agent_setup):
+            self.pathGraph = None
+            return res_agent_setup
+        return Success(BuildOutcome.BUILT)
+
 
     def setCSV(self, csv_path) -> None:
         """
@@ -99,33 +147,18 @@ class MapleAgent:
         self.CSVParser.CSV_file = Path(csv_path) if csv_path is not None else None
 
     def setupAgent(self) -> Result[None, str]:
-        """
-        Initialize agent components in dependency order.
-        Order matters: PathGraph → CSV data → Graph edges.
+        # STEP 1: Initialize PathGraph with references to MapleAgent's data containers + populate self.pathGraph with a functional pathgraph object
+        setup_path_graph_res = self._setupPathGraph()
+        if not is_successful(setup_path_graph_res):
+            return setup_path_graph_res
 
-        Idempotent: calling setupAgent() again (e.g. on map swap) clears
-        prior state first.
-        """
-        self._resetAgentState()
-
-        # STEP 1: Initialize PathGraph with references to MapleAgent's data containers
-        # PathGraph will hold references to self.node_map (empty)
-        # This avoids the fragile initialization order we had before
-        self._setupPathGraph()
-
-        # STEP 2: Parse CSV to populate the containers PathGraph references
-        # Fills self.node_map (used by PathGraph) and self.map_rotation_order (used by MapleAgent)
-        parsed_csv_res = self._parseCSV()
-        if not is_successful(parsed_csv_res):
-            return parsed_csv_res
-
-        # STEP 3: Build graph edges using the now-populated node_map
-        # PathGraph can now access the nodes through its reference to self.node_map
+        # STEP 2: Build graph edges using the pathgraph object
         create_edges_res = self.pathGraph.buildGraph()
         if not is_successful(create_edges_res):
             return create_edges_res
 
         return Success(None)
+
 
     # def start(self):
     #     setup_agent_res = self.setupAgent()
@@ -136,6 +169,12 @@ class MapleAgent:
     #     print(f"agent state setup successfully. Beginning pathfinding...")
     #     self.thread.start()
     #
+    # NOTE: when uncommenting, the references below need a rename:
+    #   tp_max_traversal_dist (tuple) → max_horizontal_traversal_dist (int)
+    #   the .teleport() / .tp_left() method calls are also stale; the
+    #   current CharacterClass ABC exposes movement_type as a string,
+    #   not bound methods. Re-wire to whatever movement API exists at
+    #   that point.
     # def executePathFinding(self):
     #     goal_node_reached = False
     #     map_rotation_order_iter = cycle(self.map_rotation_order)
@@ -176,7 +215,7 @@ class MapleAgent:
         character_icon_mask = cv2.imread(self.character_icon_mask_path, cv2.IMREAD_GRAYSCALE)
 
         with self.sharedInfo.minimap_frame_lock:
-            minimap = cv2.cvtColor(self.sharedInfo.minimap_frame, cv2.COLOR_BGR2GRAY)
+            minimap = cv2.cvtColor(self.sharedInfo.minimap_frame, cv2.COLOR_RGB2GRAY)
             matched_loc = cv2.matchTemplate(minimap, character_icon, cv2.TM_CCORR_NORMED,
                                               mask=character_icon_mask)
             #gives top left corner of matched location
@@ -195,8 +234,33 @@ class MapleAgent:
     def deleteNode(self, node: Node) -> None:
         self.pathGraph.deleteNode(node)
 
-    def _setupPathGraph(self) -> None:
-        self.pathGraph = PathGraph(self.node_map, edge_y_alignment_allowance = self.edge_y_tolerance_level, edge_x_alignment_allowance = self.edge_x_tolerance_level)
+    def buildPathGraphFor(self, node_map) -> Result[PathGraph, str]:
+        """Single construction site for PathGraph. Returns Failure when no
+        character class is selected — PathGraph requires the character's
+        max horizontal traversal distance, which we cannot synthesize.
+
+        Used by both runtime (_setupPathGraph) and the Map Editor preview
+        (MapEditor._buildPreviewGraph). Keeps PathGraph unaware of
+        CharacterClass — it consumes the int directly."""
+        if self.characterClass is None:
+            return Failure(
+                "No character selected. Pick a character in the main window "
+                "before building the path graph."
+            )
+        return Success(PathGraph(
+            node_map=node_map,
+            edge_y_alignment_allowance=self.edge_y_tolerance_level,
+            edge_x_alignment_allowance=self.edge_x_tolerance_level,
+            max_horizontal_traversal_dist=self.characterClass.max_horizontal_traversal_dist,
+            max_vertical_traversal_dist=self.characterClass.max_vertical_traversal_dist,
+        ))
+
+    def _setupPathGraph(self) -> Result[None, str]:
+        res = self.buildPathGraphFor(self.node_map)
+        if not is_successful(res):
+            return res
+        self.pathGraph = res.unwrap()
+        return Success(None)
 
     def _computeDirectionOfTravel(self, char_node: CharacterNode, target_node: Node):
         char_x, char_y = char_node.minimap_position
@@ -226,16 +290,3 @@ class MapleAgent:
         new_char_x, new_char_y = char_x + movement_ability_x_dist, char_y + movement_ability_y_dist
         dist_to_target_after_tp_x, dist_to_target_after_tp_y = abs(target_x - new_char_x), abs(target_y - new_char_y)
         return dist_to_target_after_tp_x, dist_to_target_after_tp_y
-
-
-
-    def _parseCSV(self) -> Result[None, str]:
-        parsed_csv_res = self.CSVParser.parseCSV(self.map_rotation_order,self.node_map)
-        if not is_successful(parsed_csv_res):
-            return parsed_csv_res
-
-        #explicit assignment purely for clarity purposes- CSVParser.parseCSV() actually does in-place modification.
-        parsed_csv_res = parsed_csv_res.unwrap()
-        self.map_rotation_order = parsed_csv_res[0]
-        self.node_map = parsed_csv_res[1]
-        return Success(None)

@@ -26,7 +26,6 @@ class CSVParser:
                 delimiter=',',
             )
             for dict_row in csv_reader:
-
                 #converting to in-memory literals
                 nodetype = dict_row[self.CSV_fields["nodetype"]]
                 pos_in_minimap = ast.literal_eval(dict_row[self.CSV_fields["pos_in_minimap"]])
@@ -45,7 +44,7 @@ class CSVParser:
                 row += 1
 
         print(f"successfully created all nodes in memory, next step: graph creation.")
-        return Success((map_rotation_order, node_map))
+        return Success(None)
 
     def _validateCSV(self) -> Result[None, str]:
         if self.CSV_file is None:

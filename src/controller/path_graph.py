@@ -20,11 +20,13 @@ AxisAngleThreshold = namedtuple("AxisAngleThreshold", ["min_angle", "max_angle"]
 VectorInfo = namedtuple("VectorInfo", ["dom_direction", "node_tuple"])
 
 class PathGraph:
-    def __init__(self, node_map, edge_y_alignment_allowance, edge_x_alignment_allowance):
+    def __init__(self, node_map, edge_y_alignment_allowance, edge_x_alignment_allowance, max_horizontal_traversal_dist, max_vertical_traversal_dist):
         self.node_map = node_map #used to build the graph
         self.graph = nx.MultiDiGraph()  # multi-edged directed graph
         self.edge_y_alignment_allowance = edge_y_alignment_allowance#allow some vertical leeway when connecting nodes horizontally
         self.edge_x_alignment_allowance = edge_x_alignment_allowance #allow some horizontal leeway when connecting nodes vertically
+        self.max_horizontal_traversal_dist = max_horizontal_traversal_dist #character's max horizontal reach; horizontal edges are not created between nodes farther apart than this on the x-axis
+        self.max_vertical_traversal_dist = max_vertical_traversal_dist #character's max vertical reach; vertical edges (both up and down) are not created between nodes farther apart than this on the y-axis
         self.axis_angle_threshold = AxisAngleThreshold(min_angle=45, max_angle=135) #hold values used to determine predominant axis a vector points in - x or y axis.
 
     # TODO: test if this function works as expected. Test various character positions and double-check that the pathfinding makes sense.
@@ -232,6 +234,7 @@ class PathGraph:
         This method searches through all nodes in the node map to find the closest node that:
         1. Is positioned to the left of the current node (has a smaller x-coordinate)
         2. Is approximately at the same vertical level (y-coordinate within edge_y_alignment_allowance)
+        3. Is within max_horizontal_traversal_dist on the x-axis (character-class horizontal reach gate)
 
         Args:
             curr_node (Node): The reference node to search from
@@ -244,7 +247,12 @@ class PathGraph:
 
         for next_node in self.node_map.values():
             next_node_x_pos, next_node_y_pos = next_node.minimap_position
-            if curr_node_x_pos > next_node_x_pos and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
+            # Distance heuristic only — does NOT detect terrain gaps. Two nodes
+            # within `max_horizontal_traversal_dist` get an edge even if the
+            # gap between them is unwalkable air (no platform data available).
+            if curr_node_x_pos > next_node_x_pos \
+                    and abs(curr_node_x_pos - next_node_x_pos) <= self.max_horizontal_traversal_dist \
+                    and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
                 if closest is None:
                     closest = next_node
                 else:
@@ -272,6 +280,7 @@ class PathGraph:
         This method searches through all nodes in the node map to find the closest node that:
         1. Is positioned to the right of the current node (has a larger x-coordinate)
         2. Is approximately at the same vertical level (y-coordinate within edge_y_alignment_allowance)
+        3. Is within max_horizontal_traversal_dist on the x-axis (character-class horizontal reach gate)
 
         Args:
             curr_node (Node): The reference node to search from
@@ -284,7 +293,10 @@ class PathGraph:
 
         for next_node in self.node_map.values():
             next_node_x_pos, next_node_y_pos = next_node.minimap_position
-            if curr_node_x_pos < next_node_x_pos and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
+            # Distance heuristic only — see comment in _findClosestLeftNode.
+            if curr_node_x_pos < next_node_x_pos \
+                    and abs(next_node_x_pos - curr_node_x_pos) <= self.max_horizontal_traversal_dist \
+                    and curr_node_y_pos - self.edge_y_alignment_allowance <= next_node_y_pos <= curr_node_y_pos + self.edge_y_alignment_allowance:
                 if closest is None:
                     closest = next_node
                 else:
@@ -310,7 +322,8 @@ class PathGraph:
         This method searches through all nodes in the node map to find the closest node that:
         1. Is positioned above the current node (has a smaller y-coordinate, since origin is top-left)
         2. Is approximately at the same horizontal level (x-coordinate within edge_x_alignment_allowance)
-        3. Is not the same node as the current node
+        3. Is within max_vertical_traversal_dist on the y-axis (character-class vertical reach gate)
+        4. Is not the same node as the current node
 
         Args:
             curr_node (Node): The reference node to search from
@@ -325,7 +338,9 @@ class PathGraph:
                 continue
             next_node_x_pos, next_node_y_pos = next_node.minimap_position
             # lower y value means higher up since origin is topleft.
-            if next_node_y_pos < curr_node_y_pos and curr_node_x_pos - self.edge_x_alignment_allowance <= next_node_x_pos <= curr_node_x_pos + self.edge_x_alignment_allowance:
+            if next_node_y_pos < curr_node_y_pos \
+                    and abs(curr_node_y_pos - next_node_y_pos) <= self.max_vertical_traversal_dist \
+                    and curr_node_x_pos - self.edge_x_alignment_allowance <= next_node_x_pos <= curr_node_x_pos + self.edge_x_alignment_allowance:
                 if closest is None:
                     closest = next_node
                 else:
@@ -360,7 +375,8 @@ class PathGraph:
         This method searches through all nodes in the node map to find the closest node that:
         1. Is positioned below the current node (has a larger y-coordinate, since origin is top-left)
         2. Is approximately at the same horizontal level (x-coordinate within edge_x_alignment_allowance)
-        3. Is not the same node as the current node
+        3. Is within max_vertical_traversal_dist on the y-axis (character-class vertical reach gate)
+        4. Is not the same node as the current node
 
         Args:
             curr_node (Node): The reference node to search from
@@ -375,7 +391,9 @@ class PathGraph:
                 continue
             next_node_x_pos, next_node_y_pos = next_node.minimap_position
             # lower y value means higher up since origin is topleft.
-            if next_node_y_pos > curr_node_y_pos and curr_node_x_pos - self.edge_x_alignment_allowance <= next_node_x_pos <= curr_node_x_pos + self.edge_x_alignment_allowance:
+            if next_node_y_pos > curr_node_y_pos \
+                    and abs(next_node_y_pos - curr_node_y_pos) <= self.max_vertical_traversal_dist \
+                    and curr_node_x_pos - self.edge_x_alignment_allowance <= next_node_x_pos <= curr_node_x_pos + self.edge_x_alignment_allowance:
                 if closest is None:
                     closest = next_node
                 else:

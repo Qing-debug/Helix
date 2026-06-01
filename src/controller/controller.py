@@ -215,7 +215,7 @@ class MapleAgent:
         character_icon_mask = cv2.imread(self.character_icon_mask_path, cv2.IMREAD_GRAYSCALE)
 
         with self.sharedInfo.minimap_frame_lock:
-            minimap = cv2.cvtColor(self.sharedInfo.minimap_frame, cv2.COLOR_RGB2GRAY)
+            minimap = cv2.cvtColor(self.sharedInfo.minimap_frame, cv2.COLOR_BGR2GRAY)
             matched_loc = cv2.matchTemplate(minimap, character_icon, cv2.TM_CCORR_NORMED,
                                               mask=character_icon_mask)
             #gives top left corner of matched location

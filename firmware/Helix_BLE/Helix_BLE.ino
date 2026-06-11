@@ -18,6 +18,41 @@ void setup() {
   Serial.println("Helix_BLE (NimBLE) starting...");
 
   NimBLEDevice::init("Guiness"); // same singleton pattern as Bluedroid's BLEDevice::init
+
+  // ---- BLE pairing/security config -------------------------------------------------
+  // Both calls are static NimBLEDevice setters that write fields in NimBLE's global host
+  // security config (ble_hs_cfg). They MUST come after init(): init() zeroes these fields
+  // (NimBLEDevice.cpp:992-995), so setting them earlier would be wiped.
+  //
+  // WHY this exists: the security-less skeleton stored no Long-Term Key (LTK), so when a
+  // bonded Windows central auto-initiated encryption on reconnect the board rejected it
+  // (0x06 "PIN or Key Missing") and Windows killed the link (ISSUES.md #3). Also mandatory
+  // for Task 2: the HID input report is READ_ENC (NimBLEHIDDevice.cpp:181) -> no encrypted
+  // link, no keystroke subscription.
+  //
+  // setSecurityAuth(bool bonding, bool mitm, bool sc) sets ble_hs_cfg.sm_bonding/sm_mitm/
+  // sm_sc (NimBLEDevice.cpp:1179-1183). Args here = (true, false, true):
+  //   bonding = true  -> store the LTK persistently in NVS (bond data; survives reboot/RST
+  //                      because CONFIG_BT_NIMBLE_NVS_PERSIST = 1, nimconfig.h:277), so a
+  //                      bonded central's reconnect re-encryption finds a matching key.
+  //                      Default is 0 (NimBLEDevice.cpp:993) -> exactly the skeleton's bug.
+  //   mitm    = false -> do NOT request Man-In-The-Middle protection. MITM needs an
+  //                      authenticated method (passkey / numeric compare), which needs I/O
+  //                      hardware this board lacks; requesting it would be a no-op the link
+  //                      can't honor. Result: an unauthenticated bond.
+  //   sc      = true  -> use LE Secure Connections (Bluetooth 4.2 ECDH pairing) instead of
+  //                      legacy pairing (NimBLEDevice.cpp:1177). Needs no I/O -> safe to enable.
+  NimBLEDevice::setSecurityAuth(true, false, true);
+  //
+  // setSecurityIOCap(uint8_t iocap) sets ble_hs_cfg.sm_io_cap (NimBLEDevice.cpp:1210-1211).
+  // NO_INPUT_OUTPUT (0x03, "NoInputNoOutput", NimBLEDevice.cpp:1207) declares no display and
+  // no keypad. The pairing method is chosen from BOTH peers' I/O capabilities; when one side
+  // has no I/O the only available method is Just Works -> pairing completes with no passkey
+  // or numeric-comparison UI. Right for a headless ESP32 (silent bond with Windows); the
+  // trade-off is no MITM protection (hence mitm = false above).
+  NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+  // ----------------------------------------------------------------------------------
+
   NimBLEServer *pServer = NimBLEDevice::createServer();
   NimBLEService *pService = pServer->createService(SERVICE_UUID);
   NimBLECharacteristic *pCharacteristic =
@@ -35,6 +70,7 @@ void setup() {
   NimBLEDevice::startAdvertising();
 
   Serial.println("Advertising as Guiness (custom service only).");
+  Serial.println("Bonding enabled (Just Works) — re-pair Guiness in Windows after flashing.");
 }
 
 void loop() {
